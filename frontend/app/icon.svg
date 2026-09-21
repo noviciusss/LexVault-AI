@@ -1,0 +1,29 @@
+<svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="lexGoldGrad" x1="4" y1="4" x2="44" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F5E6B3" />
+      <stop offset="35%" stop-color="#C9A24B" />
+      <stop offset="70%" stop-color="#9C7726" />
+      <stop offset="100%" stop-color="#D8B558" />
+    </linearGradient>
+    <linearGradient id="shieldFill" x1="24" y1="2" x2="24" y2="46" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1E232E" />
+      <stop offset="100%" stop-color="#0E1117" />
+    </linearGradient>
+    <linearGradient id="pillarGrad" x1="24" y1="12" x2="24" y2="38" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95" />
+      <stop offset="100%" stop-color="#C9A24B" stop-opacity="0.8" />
+    </linearGradient>
+  </defs>
+  <path d="M24 3L8 9V21C8 31.8 14.8 41.7 24 45C33.2 41.7 40 31.8 40 21V9L24 3Z" fill="url(#shieldFill)" stroke="url(#lexGoldGrad)" stroke-width="2" stroke-linejoin="round" />
+  <path d="M24 6.5L11 11.5V20.5C11 29.5 16.5 37.8 24 41C31.5 37.8 37 29.5 37 20.5V11.5L24 6.5Z" stroke="url(#lexGoldGrad)" stroke-width="0.8" stroke-opacity="0.45" stroke-dasharray="2 1.5" />
+  <path d="M15 17.5H33" stroke="url(#lexGoldGrad)" stroke-width="2" stroke-linecap="round" />
+  <path d="M24 13V35" stroke="url(#pillarGrad)" stroke-width="2.4" stroke-linecap="round" />
+  <path d="M20 35H28" stroke="url(#lexGoldGrad)" stroke-width="2" stroke-linecap="round" />
+  <path d="M16.5 18L13.5 24H19.5L16.5 18Z" fill="url(#shieldFill)" stroke="url(#lexGoldGrad)" stroke-width="1.2" />
+  <path d="M12.5 24C12.5 26.2 14.3 27.5 16.5 27.5C18.7 27.5 20.5 26.2 20.5 24H12.5Z" fill="url(#lexGoldGrad)" fill-opacity="0.35" stroke="url(#lexGoldGrad)" stroke-width="1" />
+  <path d="M31.5 18L28.5 24H34.5L31.5 18Z" fill="url(#shieldFill)" stroke="url(#lexGoldGrad)" stroke-width="1.2" />
+  <path d="M27.5 24C27.5 26.2 29.3 27.5 31.5 27.5C33.7 27.5 35.5 26.2 35.5 24H27.5Z" fill="url(#lexGoldGrad)" fill-opacity="0.35" stroke="url(#lexGoldGrad)" stroke-width="1" />
+  <circle cx="24" cy="23" r="3.2" fill="#0E1117" stroke="url(#lexGoldGrad)" stroke-width="1.4" />
+  <circle cx="24" cy="23" r="1.2" fill="#F5E6B3" />
+</svg>

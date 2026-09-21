@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #0B0F14;
+    --surface: #131922;
+    --surface-elevated: #1A2230;
+    --accent: #C9A24B;
+    --accent-hover: #DEBA65;
+    --content-primary: #E7EAEE;
+    --content-secondary: #9BA3AF;
+  }
+
+  body {
+    background-color: #0B0F14;
+    color: #E7EAEE;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0B0F14;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #232D3F;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #C9A24B;
+  }
+}
+
+/* React Flow Dark Styling */
+.react-flow__background {
+  background-color: #0B0F14 !important;
+}
+
+.react-flow__attribution {
+  display: none !important;
+}
+
+.react-flow__controls {
+  background: #131922 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 8px !important;
+}
+
+.react-flow__controls-button {
+  background: #131922 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  fill: #E7EAEE !important;
+}
+
+.react-flow__controls-button:hover {
+  background: #1A2230 !important;
+  fill: #C9A24B !important;
+}
+
+/* Traveling pulse animation for pipeline connections */
+@keyframes flowDash {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+
+.pipeline-edge-active {
+  stroke-dasharray: 6 6;
+  animation: flowDash 0.8s linear infinite;
+}
+
+.glass-card {
+  background: rgba(19, 25, 34, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
