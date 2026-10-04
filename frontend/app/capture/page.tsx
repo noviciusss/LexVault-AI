@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, Suspense } from "react";
+import React, { useState, useRef, Suspense, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   FileText,
@@ -20,6 +20,10 @@ import {
   Scale,
   Building2,
   Gavel,
+  Download,
+  Volume2,
+  Zap,
+  FileCheck2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAppStore } from "@/store/useAppStore";
@@ -41,6 +45,7 @@ function CaptureContent() {
   const [textContent, setTextContent] = useState(INDIAN_LEGAL_TEMPLATES[0].content);
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
 
   // 15 Case Templates Showcase State
   const [activeTemplateId, setActiveTemplateId] = useState<string>(INDIAN_LEGAL_TEMPLATES[0].id);
@@ -54,6 +59,12 @@ function CaptureContent() {
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<any>(null);
+
+  // Dynamic Audio Preview URL
+  const audioPreviewUrl = useMemo(() => {
+    if (!audioBlob) return null;
+    return URL.createObjectURL(audioBlob);
+  }, [audioBlob]);
 
   const startRecording = async () => {
     try {
@@ -103,6 +114,56 @@ function CaptureContent() {
     const formElement = document.getElementById("capture-intake-form");
     if (formElement) {
       formElement.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  // 1-Click Demo Asset Loaders
+  const handleLoadDemoVoice = async () => {
+    setDemoLoading(true);
+    try {
+      const res = await fetch("/demo-assets/sample_voice_briefing.wav");
+      if (!res.ok) throw new Error("Failed to load sample voice asset");
+      const blob = await res.blob();
+      const wavFile = new File([blob], "sample_voice_briefing.wav", { type: "audio/wav" });
+      setFile(wavFile);
+      setAudioBlob(blob);
+      setMode("voice");
+      setTitle("Client Dictation: Bombay High Court Interim Injunction & S.27 Defense");
+      setPracticeArea("Arbitration & ADR");
+      setLanguage("eng");
+
+      const formElement = document.getElementById("capture-intake-form");
+      if (formElement) {
+        formElement.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    } catch (err: any) {
+      alert("Error loading demo audio: " + err.message);
+    } finally {
+      setDemoLoading(false);
+    }
+  };
+
+  const handleLoadDemoPdf = async () => {
+    setDemoLoading(true);
+    try {
+      const res = await fetch("/demo-assets/sample_commercial_contract.pdf");
+      if (!res.ok) throw new Error("Failed to load sample PDF contract");
+      const blob = await res.blob();
+      const pdfFile = new File([blob], "sample_commercial_contract.pdf", { type: "application/pdf" });
+      setFile(pdfFile);
+      setMode("ocr");
+      setTitle("Commercial Asset Transfer & IP Assignment Agreement (TCS v. Bharat Infotech)");
+      setPracticeArea("Indian Contract Act & Commercial");
+      setLanguage("eng");
+
+      const formElement = document.getElementById("capture-intake-form");
+      if (formElement) {
+        formElement.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    } catch (err: any) {
+      alert("Error loading demo PDF: " + err.message);
+    } finally {
+      setDemoLoading(false);
     }
   };
 
@@ -173,8 +234,112 @@ function CaptureContent() {
           Capture Attorney Working Knowledge
         </h1>
         <p className="text-xs text-content-secondary mt-1">
-          Select from 15 ready-to-use Indian case templates below or dictate/paste your own notes. All client identifiers are stripped locally in Stage 3.
+          Select from 15 ready-to-use Indian case templates, or test on-device Voice transcription and Document OCR using one-click demo presets.
         </p>
+      </div>
+
+      {/* ---------------- CAPSTONE EVALUATOR 1-CLICK DEMO PRESETS ---------------- */}
+      <div className="p-5 rounded-2xl bg-gradient-to-r from-accent/15 via-surface to-surface-elevated border border-accent/40 shadow-gold/10 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-surface-border/80 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-accent text-background flex items-center justify-center font-bold">
+              <Zap className="w-4 h-4 fill-background" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-content-primary flex items-center gap-2">
+                <span>Capstone Jury & Evaluator Demo Launchers</span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-accent/20 text-accent font-semibold">Live Testing Assets</span>
+              </h2>
+              <p className="text-[11px] text-content-secondary">
+                Click below to instantly attach pre-generated Indian legal assets to prove Voice & OCR extraction without hunting for files.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Preset 1: Voice Recording Memo */}
+          <div className="p-4 rounded-xl bg-surface border border-surface-border hover:border-accent/50 transition-all space-y-3 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-accent/10 text-accent border border-accent/20 flex items-center gap-1">
+                  <Mic className="w-3 h-3" />
+                  <span>VOICE TRANSCRIPTION</span>
+                </span>
+                <span className="text-[10px] text-content-muted">16kHz PCM WAV Audio</span>
+              </div>
+              <h3 className="text-xs font-bold text-content-primary">
+                Bombay HC Interim Injunction & Section 27 Defense Briefing
+              </h3>
+              <p className="text-[11px] text-content-secondary mt-1">
+                Audio dictation regarding Bombay High Court Commercial Suit No. 412/2024 and invalidity of post-service restrictive covenants.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-surface-border text-xs gap-2">
+              <button
+                type="button"
+                onClick={handleLoadDemoVoice}
+                disabled={demoLoading}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-accent text-background text-xs font-bold hover:bg-accent-hover active:scale-95 transition-all shadow-sm"
+              >
+                {demoLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-background" />}
+                <span>1-Click Load Voice Demo</span>
+              </button>
+
+              <a
+                href="/demo-assets/sample_voice_briefing.wav"
+                download="sample_voice_briefing.wav"
+                title="Download local WAV audio file"
+                className="flex items-center gap-1 px-3 py-2 rounded-lg bg-surface-elevated hover:bg-surface border border-surface-border text-content-secondary hover:text-content-primary text-xs font-medium transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">WAV</span>
+              </a>
+            </div>
+          </div>
+
+          {/* Preset 2: Document OCR PDF */}
+          <div className="p-4 rounded-xl bg-surface border border-surface-border hover:border-accent/50 transition-all space-y-3 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-accent/10 text-accent border border-accent/20 flex items-center gap-1">
+                  <UploadCloud className="w-3 h-3" />
+                  <span>DOCUMENT OCR / PDF</span>
+                </span>
+                <span className="text-[10px] text-content-muted">2-Page Formal Contract PDF</span>
+              </div>
+              <h3 className="text-xs font-bold text-content-primary">
+                Commercial Asset Transfer Agreement (TCS v. Bharat Infotech)
+              </h3>
+              <p className="text-[11px] text-content-secondary mt-1">
+                Formal legal contract with arbitration seat in Mumbai (Perkins Eastman) and confidential counsel notices.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-surface-border text-xs gap-2">
+              <button
+                type="button"
+                onClick={handleLoadDemoPdf}
+                disabled={demoLoading}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-accent text-background text-xs font-bold hover:bg-accent-hover active:scale-95 transition-all shadow-sm"
+              >
+                {demoLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                <span>1-Click Load Contract PDF</span>
+              </button>
+
+              <a
+                href="/demo-assets/sample_commercial_contract.pdf"
+                download="sample_commercial_contract.pdf"
+                title="Download local PDF contract"
+                className="flex items-center gap-1 px-3 py-2 rounded-lg bg-surface-elevated hover:bg-surface border border-surface-border text-content-secondary hover:text-content-primary text-xs font-medium transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">PDF</span>
+              </a>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ---------------- 15 READY-TO-SHOW INDIAN CASE TEMPLATES ---------------- */}
@@ -418,13 +583,13 @@ function CaptureContent() {
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-content-primary">Voice Dictation Memo</h3>
+              <h3 className="text-sm font-semibold text-content-primary">Voice Dictation & Audio Memo</h3>
               <p className="text-xs text-content-secondary max-w-sm mx-auto mt-1">
-                Audio is transcribed via on-device faster-whisper. No audio leaves your environment unencrypted.
+                Audio is transcribed via on-device faster-whisper. Record live or load the pre-recorded Bombay HC briefing.
               </p>
             </div>
 
-            <div className="flex items-center justify-center gap-4 pt-2">
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
               {!isRecording ? (
                 <button
                   type="button"
@@ -432,7 +597,7 @@ function CaptureContent() {
                   className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-status-danger text-white text-xs font-semibold hover:bg-status-danger/90 transition-all shadow-sm"
                 >
                   <Play className="w-4 h-4 fill-white" />
-                  <span>Record Memo</span>
+                  <span>Record Live Microphone</span>
                 </button>
               ) : (
                 <button
@@ -444,11 +609,35 @@ function CaptureContent() {
                   <span>Stop Recording ({recordingSeconds}s)</span>
                 </button>
               )}
+
+              <button
+                type="button"
+                onClick={handleLoadDemoVoice}
+                disabled={demoLoading}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-surface border border-accent/40 text-accent text-xs font-semibold hover:bg-accent/10 transition-all shadow-sm"
+              >
+                {demoLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Volume2 className="w-3.5 h-3.5" />}
+                <span>Attach Pre-Recorded Legal Memo</span>
+              </button>
             </div>
 
-            {audioBlob && (
-              <div className="text-xs text-status-success font-medium">
-                ✓ Audio recorded ({audioBlob.size} bytes). Ready to pipeline.
+            {/* Audio Preview & Confirmation */}
+            {audioPreviewUrl && (
+              <div className="p-4 rounded-xl bg-surface border border-accent/30 max-w-md mx-auto space-y-2 text-left">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-accent flex items-center gap-1.5">
+                    <Volume2 className="w-4 h-4" />
+                    <span>Attached Audio Stream</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-content-muted">
+                    {file?.name || "voice_memo.webm"} ({audioBlob ? `${(audioBlob.size / 1024).toFixed(1)} KB` : ""})
+                  </span>
+                </div>
+                <audio controls src={audioPreviewUrl} className="w-full h-8 rounded" />
+                <div className="text-[11px] text-status-success font-medium flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Ready for faster-whisper transcription & PII sanitization.</span>
+                </div>
               </div>
             )}
           </div>
@@ -479,15 +668,45 @@ function CaptureContent() {
               </select>
             </div>
 
-            <input
-              type="file"
-              accept=".pdf,.png,.jpg,.jpeg"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
-              className="text-xs text-content-secondary file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-accent/20 file:text-accent hover:file:bg-accent/30 cursor-pointer"
-            />
+            <div className="flex flex-col items-center justify-center gap-3">
+              <input
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                className="text-xs text-content-secondary file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-accent/20 file:text-accent hover:file:bg-accent/30 cursor-pointer"
+              />
 
-            {/* Quick Demo Sheet Button */}
+              {/* File Selected Badge */}
+              {file && (
+                <div className="p-3 rounded-lg bg-surface border border-accent/30 flex items-center justify-between gap-3 text-xs max-w-sm w-full">
+                  <div className="flex items-center gap-2 text-content-primary truncate">
+                    <FileCheck2 className="w-4 h-4 text-status-success shrink-0" />
+                    <span className="font-mono text-[11px] font-semibold truncate">{file.name}</span>
+                    <span className="text-[10px] text-content-muted shrink-0">({(file.size / 1024).toFixed(1)} KB)</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFile(null)}
+                    className="text-[10px] text-status-danger hover:underline shrink-0"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Quick Demo Sheet & Contract Loaders */}
             <div className="pt-3 border-t border-surface-border/50 flex flex-wrap items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={handleLoadDemoPdf}
+                disabled={demoLoading}
+                className="px-3 py-1.5 rounded-lg bg-surface border border-accent/30 text-xs text-accent hover:bg-accent/10 flex items-center gap-1.5 font-semibold transition-all shadow-sm"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Load Sample Commercial Contract PDF</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
@@ -495,10 +714,10 @@ function CaptureContent() {
                   handleSelectTemplate(hindiTpl);
                   alert("Hindi Legal Test Sheet loaded into OCR buffer! Click 'Launch Pipeline' below.");
                 }}
-                className="text-xs text-status-success hover:underline flex items-center gap-1 font-semibold"
+                className="px-3 py-1.5 rounded-lg bg-surface border border-surface-border text-xs text-status-success hover:bg-status-success/10 flex items-center gap-1.5 font-semibold transition-all"
               >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Test with Pre-Loaded Hindi Case Sheet (बिना फाइल टेस्ट करें)</span>
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Pre-Loaded Hindi Devanagari Sheet</span>
               </button>
             </div>
           </div>
