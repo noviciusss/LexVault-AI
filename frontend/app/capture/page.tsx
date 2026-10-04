@@ -471,7 +471,7 @@ function CaptureContent() {
               <span className="text-content-secondary text-[11px] font-medium">OCR Recognition Script:</span>
               <select
                 value={language}
-                onChange={(e) => setLanguage(e.target.value)}
+                onChange={(e) => setLanguage(e.target.value as "eng" | "hin")}
                 className="px-3 py-1.5 rounded-lg bg-surface border border-surface-border text-xs text-accent font-semibold focus:outline-none focus:border-accent"
               >
                 <option value="eng">English (Default)</option>

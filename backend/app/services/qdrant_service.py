@@ -66,12 +66,21 @@ class QdrantService:
                         FieldCondition(key="firm_id", match=MatchValue(value=firm_id))
                     ]
                 )
-                results = self.client.search(
-                    collection_name=self.collection_name,
-                    query_vector=query_vector,
-                    query_filter=query_filter,
-                    limit=top_k,
-                )
+                if hasattr(self.client, "query_points"):
+                    res = self.client.query_points(
+                        collection_name=self.collection_name,
+                        query=query_vector,
+                        query_filter=query_filter,
+                        limit=top_k,
+                    )
+                    results = res.points
+                else:
+                    results = self.client.search(
+                        collection_name=self.collection_name,
+                        query_vector=query_vector,
+                        query_filter=query_filter,
+                        limit=top_k,
+                    )
                 return [
                     {
                         "id": hit.id,

@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List, Dict
 from datetime import datetime
 from sqlmodel import SQLModel, Field, Column
 import sqlalchemy as sa
@@ -22,6 +22,8 @@ class ChatQuery(SQLModel, table=True):
 class ChatRequest(SQLModel):
     question: str
     practice_area: Optional[str] = None
+    history: Optional[List[Dict[str, str]]] = None
+    action_type: Optional[str] = None  # "advisory" | "draft_objection" | "draft_reply"
 
 class ChatResponse(SQLModel):
     id: int

@@ -22,7 +22,14 @@ import {
   ArrowRightLeft,
   Building2,
   Lock,
+  BotMessageSquare,
+  Send,
+  MessageSquare,
+  Copy,
+  Check,
+  ExternalLink,
 } from "lucide-react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 
 const PRACTICE_AREAS = [
@@ -52,6 +59,13 @@ export default function KnowledgeHubPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [activeItem, setActiveItem] = useState<any | null>(null);
+
+  // Precedent Document-level Chat State
+  const [itemModalTab, setItemModalTab] = useState<"overview" | "chat">("overview");
+  const [docChatMessages, setDocChatMessages] = useState<any[]>([]);
+  const [docChatInput, setDocChatInput] = useState("");
+  const [docChatLoading, setDocChatLoading] = useState(false);
+  const [copiedDocInsight, setCopiedDocInsight] = useState(false);
 
   // Constitution Explorer State
   const [articles, setArticles] = useState<any[]>([]);
@@ -98,6 +112,51 @@ export default function KnowledgeHubPage() {
     };
     fetchUser();
   }, []);
+
+  // Sync Doc Chat when activeItem changes
+  useEffect(() => {
+    if (activeItem) {
+      setItemModalTab("overview");
+      setDocChatMessages([
+        {
+          role: "assistant",
+          content: `Namaste Advocate. You are interrogating Vault Precedent #${activeItem.id || activeItem.item_id}: **${activeItem.title}** (${activeItem.practice_area}).\n\nAsk questions about the bench's core holding, ratio decidendi, statutory interpretation, or draft preliminary objections based on this precedent.`,
+        },
+      ]);
+    }
+  }, [activeItem]);
+
+  const handleDocChatSend = async (questionText?: string) => {
+    const q = questionText || docChatInput;
+    if (!q.trim() || docChatLoading || !activeItem) return;
+
+    const userMsg = { role: "user", content: q };
+    setDocChatMessages((prev) => [...prev, userMsg]);
+    setDocChatInput("");
+    setDocChatLoading(true);
+
+    try {
+      const prompt = `[Document Precedent #${activeItem.id || activeItem.item_id}: "${activeItem.title}"]\nContext Strategy: ${activeItem.abstracted_insight}\n\nAdvocate Question: ${q}`;
+      const res = await api.chat.send(prompt, activeItem.practice_area);
+      setDocChatMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: res.answer || "Document analysis completed.",
+        },
+      ]);
+    } catch (e: any) {
+      setDocChatMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `Analysis regarding Precedent #${activeItem.id || activeItem.item_id} (${activeItem.title}):\n\n${activeItem.abstracted_insight}\n\nThis authority governs firm pleadings in ${activeItem.practice_area}.`,
+        },
+      ]);
+    } finally {
+      setDocChatLoading(false);
+    }
+  };
 
   // Load Precedents
   const loadItems = async (area?: string, q?: string) => {
@@ -785,38 +844,207 @@ export default function KnowledgeHubPage() {
         </div>
       )}
 
-      {/* Precedent Detail Modal */}
+      {/* Precedent Detail Modal with In-Situ Document Chat */}
       {activeItem && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 overflow-y-auto p-4 sm:p-6 flex justify-center items-start pt-8 sm:pt-14">
-          <div className="w-full max-w-2xl bg-surface border border-surface-border rounded-2xl p-6 space-y-5 shadow-2xl relative mb-12 animate-fade-in">
-            <div className="flex items-start justify-between gap-4 border-b border-surface-border pb-4">
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 overflow-y-auto p-4 sm:p-6 flex justify-center items-start pt-8 sm:pt-12 animate-fade-in">
+          <div className="w-full max-w-3xl bg-surface border border-surface-border rounded-2xl shadow-2xl relative mb-12 flex flex-col overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-surface-border bg-surface-elevated/70 flex items-start justify-between gap-4">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-accent/15 text-accent border border-accent/25">
-                  {activeItem.practice_area}
-                </span>
-                <h2 className="text-lg font-bold text-content-primary mt-2">{activeItem.title}</h2>
+                <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded bg-accent/15 text-accent border border-accent/25">
+                    Precedent #{activeItem.id || activeItem.item_id}
+                  </span>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-surface border border-surface-border text-content-secondary">
+                    {activeItem.practice_area}
+                  </span>
+                  <span className="text-[10px] text-content-muted flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3 text-status-success" />
+                    Verified Firm Authority
+                  </span>
+                </div>
+                <h2 className="text-lg font-bold text-content-primary leading-snug">{activeItem.title}</h2>
               </div>
               <button
                 onClick={() => setActiveItem(null)}
-                className="text-content-muted hover:text-content-primary text-xs font-semibold px-2 py-1 rounded-lg hover:bg-surface-elevated transition-colors"
+                className="text-content-muted hover:text-content-primary text-xs font-semibold px-2.5 py-1 rounded-lg hover:bg-surface transition-colors shrink-0"
               >
                 ✕ Close
               </button>
             </div>
 
-            <div className="space-y-3">
-              <h4 className="text-xs font-semibold text-accent uppercase tracking-wider">
-                Full Institutional Legal Strategy
-              </h4>
-              <div className="p-4 rounded-xl bg-surface-elevated border border-surface-border text-xs text-content-primary leading-relaxed whitespace-pre-wrap font-serif">
-                {activeItem.abstracted_insight}
+            {/* Modal Sub-Tabs */}
+            <div className="flex items-center gap-2 px-6 py-2.5 border-b border-surface-border bg-surface-subtle text-xs">
+              <button
+                onClick={() => setItemModalTab("overview")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                  itemModalTab === "overview"
+                    ? "bg-accent/15 text-accent border border-accent/30 shadow-sm"
+                    : "text-content-secondary hover:text-content-primary hover:bg-surface"
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Overview & Strategy</span>
+              </button>
+
+              <button
+                onClick={() => setItemModalTab("chat")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                  itemModalTab === "chat"
+                    ? "bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 shadow-sm"
+                    : "text-content-secondary hover:text-content-primary hover:bg-surface"
+                }`}
+              >
+                <BotMessageSquare className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Chat with this Document</span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-500/20 text-indigo-300">
+                  AI Scoped
+                </span>
+              </button>
+
+              <div className="ml-auto hidden sm:flex items-center gap-2">
+                <Link
+                  href="/assistant"
+                  className="flex items-center gap-1 text-[11px] text-accent hover:underline font-medium"
+                >
+                  <span>Open Full Copilot</span>
+                  <ExternalLink className="w-3 h-3" />
+                </Link>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 text-[11px] text-content-muted pt-2 border-t border-surface-border">
-              <div>Vector Status: Indexed in Qdrant (Firm #{activeItem.firm_id})</div>
-              <div className="text-right">Knowledge Graph: Ingested in Neo4j</div>
-            </div>
+            {/* Tab 1: Overview & Strategy */}
+            {itemModalTab === "overview" && (
+              <div className="p-6 space-y-5 overflow-y-auto max-h-[65vh]">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-semibold text-accent uppercase tracking-wider flex items-center gap-1.5">
+                      <Scale className="w-3.5 h-3.5" />
+                      <span>Full Institutional Legal Strategy & Ratio</span>
+                    </h4>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(activeItem.abstracted_insight || "");
+                        setCopiedDocInsight(true);
+                        setTimeout(() => setCopiedDocInsight(false), 2000);
+                      }}
+                      className="flex items-center gap-1 text-[11px] text-content-muted hover:text-accent transition-colors"
+                    >
+                      {copiedDocInsight ? <Check className="w-3 h-3 text-status-success" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedDocInsight ? "Copied" : "Copy Ratio"}</span>
+                    </button>
+                  </div>
+                  <div className="p-4 rounded-xl bg-surface-elevated border border-surface-border text-xs text-content-primary leading-relaxed whitespace-pre-wrap font-serif">
+                    {activeItem.abstracted_insight}
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-indigo-950/20 border border-indigo-500/20 space-y-2 text-xs">
+                  <div className="font-semibold text-indigo-300 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Interrogate this Precedent:</span>
+                  </div>
+                  <p className="text-content-secondary text-[11px]">
+                    Need to extract specific obiter dicta, identify distinguishing rulings, or draft legal submissions based on this decision?
+                  </p>
+                  <button
+                    onClick={() => setItemModalTab("chat")}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-colors shadow-sm mt-1"
+                  >
+                    <BotMessageSquare className="w-3.5 h-3.5" />
+                    <span>Start Document Q&A</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-[11px] text-content-muted pt-2 border-t border-surface-border">
+                  <div>Vector Status: Indexed in Qdrant (Firm #{activeItem.firm_id})</div>
+                  <div className="text-right">Knowledge Graph: Ingested in Neo4j</div>
+                </div>
+              </div>
+            )}
+
+            {/* Tab 2: Document Scoped Chat */}
+            {itemModalTab === "chat" && (
+              <div className="flex flex-col h-[65vh]">
+                {/* Pre-canned Prompts */}
+                <div className="p-3 bg-surface-subtle border-b border-surface-border flex items-center gap-2 overflow-x-auto text-xs shrink-0">
+                  <span className="text-[10px] uppercase font-bold text-indigo-400 shrink-0">
+                    Quick Queries:
+                  </span>
+                  {[
+                    "What is the exact ratio decidendi?",
+                    "What statutory provisions were relied upon?",
+                    "How does this distinguish adverse rulings?",
+                    "Draft preliminary objection citing this",
+                  ].map((preset, pIdx) => (
+                    <button
+                      key={pIdx}
+                      onClick={() => handleDocChatSend(preset)}
+                      disabled={docChatLoading}
+                      className="px-2.5 py-1 rounded-md bg-surface hover:bg-surface-elevated border border-surface-border text-content-secondary hover:text-indigo-300 text-[11px] whitespace-nowrap transition-colors"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Chat Log */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  {docChatMessages.map((m, idx) => {
+                    const isUser = m.role === "user";
+                    return (
+                      <div
+                        key={idx}
+                        className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}
+                      >
+                        <div
+                          className={`max-w-[85%] rounded-2xl p-3.5 text-xs leading-relaxed ${
+                            isUser
+                              ? "bg-accent text-background font-medium"
+                              : "bg-surface-elevated border border-surface-border text-content-primary font-serif whitespace-pre-wrap"
+                          }`}
+                        >
+                          {m.content}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {docChatLoading && (
+                    <div className="flex items-center gap-2 text-xs text-indigo-400 font-semibold p-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Interrogating precedent holding...</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Chat Input */}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleDocChatSend();
+                  }}
+                  className="p-3 border-t border-surface-border bg-surface flex gap-2 shrink-0"
+                >
+                  <input
+                    type="text"
+                    placeholder={`Ask about Precedent #${activeItem.id || activeItem.item_id} (${activeItem.title.substring(0, 30)}...)...`}
+                    value={docChatInput}
+                    onChange={(e) => setDocChatInput(e.target.value)}
+                    disabled={docChatLoading}
+                    className="flex-1 px-3.5 py-2 rounded-xl bg-surface-elevated border border-surface-border text-xs text-content-primary focus:outline-none focus:border-indigo-500"
+                  />
+                  <button
+                    type="submit"
+                    disabled={docChatLoading || !docChatInput.trim()}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Ask</span>
+                  </button>
+                </form>
+              </div>
+            )}
           </div>
         </div>
       )}

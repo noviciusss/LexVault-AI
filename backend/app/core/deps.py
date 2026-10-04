@@ -16,9 +16,11 @@ async def get_current_user(
 ) -> User:
     if not credentials:
         # Default mock/demo user if not logged in to allow seamless dev testing
-        query = select(User).where(User.email == "alice@firm.com")
+        query = select(User).where((User.email == "rohit@chandrarao.law") | (User.email == "alice@firm.com"))
         res = await session.execute(query)
-        user = res.scalar_one_or_none()
+        user = res.scalars().first()
+        if not user:
+            user = (await session.execute(select(User))).scalars().first()
         if user:
             return user
         raise HTTPException(

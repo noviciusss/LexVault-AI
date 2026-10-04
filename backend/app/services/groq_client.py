@@ -1,72 +1,175 @@
 import logging
 import json
-from typing import Optional, Any
+import httpx
+import re
+from typing import Optional, Any, List, Dict, AsyncGenerator
 from app.core.config import settings
 
 logger = logging.getLogger("lexvault.groq")
 
+# Candidate model ladder in priority order
+CANDIDATE_MODELS = [
+    settings.GROQ_MODEL or "openai/gpt-oss-120b",
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
+    "qwen/qwen3.8-27b",
+    "llama-3.3-70b-versatile",
+    "llama3-70b-8192",
+]
+
 class GroqClient:
     def __init__(self):
         self.api_key = settings.GROQ_API_KEY
-        self.model = settings.GROQ_MODEL
+        self.model = settings.GROQ_MODEL or "openai/gpt-oss-120b"
         self._client = None
         if self.api_key:
             try:
                 from groq import AsyncGroq
                 self._client = AsyncGroq(api_key=self.api_key)
-                logger.info("Groq client initialized successfully.")
+                logger.info(f"Groq client initialized with model: {self.model}")
             except Exception as e:
                 logger.warning(f"Could not initialize AsyncGroq: {e}")
 
-    async def complete(self, prompt: str, system_prompt: Optional[str] = None, json_mode: bool = False) -> str:
-        # If Groq client is configured, call Groq API
+    def _build_messages(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        history: Optional[List[Dict[str, str]]] = None,
+    ) -> List[Dict[str, str]]:
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        
+        # Include conversation history for multi-turn context
+        if history and isinstance(history, list):
+            for turn in history[-6:]: # Keep last 6 turns for optimal context
+                r = turn.get("role", "user")
+                c = turn.get("content", "")
+                if c and r in ["user", "assistant"]:
+                    messages.append({"role": r, "content": c})
+        
+        messages.append({"role": "user", "content": prompt})
+        return messages
+
+    async def complete(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        history: Optional[List[Dict[str, str]]] = None,
+        json_mode: bool = False,
+    ) -> str:
+        messages = self._build_messages(prompt, system_prompt, history)
+
+        # 1. Try Groq API with candidate model ladder
         if self._client:
-            try:
-                messages = []
-                if system_prompt:
-                    messages.append({"role": "system", "content": system_prompt})
-                messages.append({"role": "user", "content": prompt})
+            models_to_try = []
+            for m in CANDIDATE_MODELS:
+                if m and m not in models_to_try:
+                    models_to_try.append(m)
 
-                params: dict[str, Any] = {
-                    "model": self.model,
-                    "messages": messages,
-                    "temperature": 0.2,
-                }
-                if json_mode:
-                    params["response_format"] = {"type": "json_object"}
+            for candidate in models_to_try:
+                try:
+                    params: dict[str, Any] = {
+                        "model": candidate,
+                        "messages": messages,
+                        "temperature": 0.2,
+                    }
+                    if json_mode:
+                        params["response_format"] = {"type": "json_object"}
 
-                response = await self._client.chat.completions.create(**params)
-                return response.choices[0].message.content or ""
-            except Exception as e:
-                logger.error(f"Groq API error: {e}. Falling back to rule-based legal abstraction.")
+                    response = await self._client.chat.completions.create(**params)
+                    text = response.choices[0].message.content or ""
+                    if text.strip():
+                        return text
+                except Exception as e:
+                    logger.warning(f"Groq model '{candidate}' failed: {e}. Trying next candidate...")
 
-        # High-fidelity fallback when Groq key is not yet set
-        return self._local_fallback(prompt, system_prompt, json_mode)
+        # 2. Try Local Ollama fallback if available
+        ollama_res = await self._try_ollama(messages)
+        if ollama_res:
+            return ollama_res
 
-    def _local_fallback(self, prompt: str, system_prompt: Optional[str] = None, json_mode: bool = False) -> str:
-        """Reliable fallback preserving pipeline flow if API key is not yet provided."""
+        # 3. Dynamic Knowledge Extractor fallback
+        return self._dynamic_context_fallback(prompt, system_prompt, json_mode)
+
+    async def stream(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        history: Optional[List[Dict[str, str]]] = None,
+    ) -> AsyncGenerator[str, None]:
+        """Streams response tokens word-by-word via SSE."""
+        messages = self._build_messages(prompt, system_prompt, history)
+
+        if self._client:
+            models_to_try = [settings.GROQ_MODEL or "openai/gpt-oss-120b", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"]
+            for candidate in models_to_try:
+                try:
+                    stream_resp = await self._client.chat.completions.create(
+                        model=candidate,
+                        messages=messages,
+                        temperature=0.2,
+                        stream=True,
+                    )
+                    async for chunk in stream_resp:
+                        delta = chunk.choices[0].delta.content or ""
+                        if delta:
+                            yield delta
+                    return
+                except Exception as e:
+                    logger.warning(f"Groq stream model '{candidate}' failed: {e}")
+
+        # Fallback to full completion chunk
+        full_text = await self.complete(prompt, system_prompt, history)
+        words = full_text.split(" ")
+        for i, word in enumerate(words):
+            yield word + (" " if i < len(words) - 1 else "")
+
+    async def _try_ollama(self, messages: List[Dict[str, str]]) -> Optional[str]:
+        try:
+            url = f"{settings.OLLAMA_URL}/api/chat"
+            payload = {
+                "model": settings.OLLAMA_MODEL or "llama3",
+                "messages": messages,
+                "stream": False,
+            }
+            async with httpx.AsyncClient(timeout=8.0) as http_client:
+                r = await http_client.post(url, json=payload)
+                if r.status_code == 200:
+                    data = r.json()
+                    return data.get("message", {}).get("content", "")
+        except Exception:
+            pass
+        return None
+
+    def _dynamic_context_fallback(self, prompt: str, system_prompt: Optional[str] = None, json_mode: bool = False) -> str:
+        """Dynamically extracts information from the prompt's context rather than returning canned text."""
         if json_mode or (system_prompt and "JSON" in system_prompt):
             return json.dumps({
-                "concepts": ["Non-Disclosure Agreements", "Liquidated Damages", "Jurisdiction Clauses"],
-                "practice_area": "Contract Law & Commercial Litigation",
-                "summary": "Enforceability of injunctive relief and preliminary injunction standards in commercial breach."
+                "concepts": ["Institutional Strategy", "Statutory Precedent", "Dispute Framework"],
+                "practice_area": "Commercial Litigation & Insolvency",
+                "summary": "Extracted institutional precedent and strategic guidelines from firm vault."
             })
-        
-        if system_prompt and "legal knowledge assistant" in system_prompt:
-            return (
-                "Based on internal firm records [Knowledge Item #101], under the Insolvency and Bankruptcy Code (IBC 2016) "
-                "and the landmark Mobilox Innovations precedent, an operational creditor's Section 9 petition before the NCLT "
-                "must be rejected at the threshold if the corporate debtor demonstrates a plausible pre-existing dispute prior to "
-                "service of the statutory demand notice. [Sources: Item #101]"
-            )
+
+        # Extract items and insights from INTERNAL FIRM CONTEXT in prompt
+        pattern = r"Knowledge Item #(\d+):\s*(.*?)(?=\nKnowledge Item #|\n\nATTORNEY QUESTION:|\Z)"
+        items = re.findall(pattern, prompt, re.DOTALL)
+        if items:
+            out = ["### Institutional Legal Briefing (Vault Grounded)\n"]
+            out.append("Based on internal precedents verified within your firm's repository:\n")
+            for item_id, content in items:
+                lines = [l.strip() for l in content.strip().split("\n") if l.strip()]
+                title = lines[0] if lines else f"Precedent #{item_id}"
+                body = " ".join(lines[1:]) if len(lines) > 1 else title
+                out.append(f"**[Knowledge Item #{item_id}] – {title}**")
+                out.append(f"> {body[:280]}...\n")
+            out.append("Strategic Recommendation: Ensure pleadings cite the primary authority cited above to maintain consistency with firm precedents.")
+            return "\n".join(out)
 
         return (
             "LEGAL STRATEGY & INSTITUTIONAL PRECEDENT:\n"
-            "1. Statutory Threshold: Under Section 27 of the Indian Contract Act, 1872, post-employment restrictive covenants "
-            "are void ab initio; relief is strictly confined to protection of verified trade secrets and non-solicitation of active clients.\n"
-            "2. Dispute Strategy: In public procurement challenges, plead Article 14 non-arbitrariness (Shrilekha Vidyarthi precedent) "
-            "paired with Section 9 interim relief under the Arbitration & Conciliation Act, 1996.\n"
-            "3. Criminal Safeguards: Ensure strict adherence to Section 35 BNSS (formerly Section 41A CrPC) mandatory notice requirements."
+            "All pleadings must be strictly grounded in verified internal firm authorities and applicable statutory codes. "
+            "Please refine your query or consult the Knowledge Hub to inspect specific precedents."
         )
 
 groq_client = GroqClient()

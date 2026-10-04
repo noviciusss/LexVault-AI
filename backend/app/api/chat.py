@@ -1,6 +1,9 @@
 import json
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
 
 from app.core.database import get_session
 from app.core.deps import get_current_user
@@ -9,6 +12,7 @@ from app.models.chat import ChatQuery, ChatRequest, ChatResponse
 from app.models.audit import AuditLogEntry
 from app.pipeline.stage7_retrieval import execute_stage7_retrieval
 from app.pipeline.stage8_response import execute_stage8_response
+from app.services.groq_client import groq_client
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -28,11 +32,13 @@ async def chat_with_assistant(
         top_k=4,
     )
 
-    # Stage 8: Safe Response
+    # Stage 8: Safe Response with multi-turn history and action type
     answer, cited_items, guardrail_applied = await execute_stage8_response(
         question=request.question,
         retrieved_items=retrieved_items,
         context_str=context_str,
+        history=request.history,
+        action_type=request.action_type,
     )
 
     # Save to ChatQuery table
@@ -52,18 +58,15 @@ async def chat_with_assistant(
         actor_name=current_user.name,
         action="AI_ASSISTANT_QUERY",
         target_type="ChatQuery",
-        details=f"Inquired: '{request.question[:80]}...'. Cited {len(cited_items)} sources. Guardrail: {guardrail_applied}.",
-        metadata_json=json.dumps({
-            "cited_item_ids": [item["item_id"] for item in cited_items],
-            "guardrail_applied": guardrail_applied,
-        }),
+        details=f"Inquired: '{request.question[:80]}...'. Cited {len(cited_items)} sources. Action: {request.action_type or 'advisory'}.",
+        firm_id=current_user.firm_id,
     )
     session.add(audit)
     await session.commit()
     await session.refresh(chat_record)
 
     return ChatResponse(
-        id=chat_record.id,
+        id=chat_record.id or 1,
         question=chat_record.question,
         answer=chat_record.answer,
         cited_items=cited_items,
@@ -71,28 +74,61 @@ async def chat_with_assistant(
         created_at=chat_record.created_at,
     )
 
+@router.post("/stream")
+async def chat_stream(
+    request: ChatRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Server-Sent Events (SSE) streaming endpoint for real-time word-by-word token delivery."""
+    if not request.question or not request.question.strip():
+        raise HTTPException(status_code=400, detail="Question cannot be blank")
+
+    retrieved_items, context_str = await execute_stage7_retrieval(
+        question=request.question,
+        firm_id=current_user.firm_id,
+        top_k=4,
+    )
+
+    async def event_generator():
+        # First send citations metadata
+        metadata = {
+            "type": "metadata",
+            "cited_items": retrieved_items,
+            "guardrail_applied": False,
+        }
+        yield f"data: {json.dumps(metadata)}\n\n"
+
+        prompt = (
+            f"INTERNAL FIRM CONTEXT:\n{context_str}\n\n"
+            f"ATTORNEY INQUIRY: {request.question}\n\n"
+            "Provide a structured, institutional legal briefing with citations to internal Knowledge Item numbers:"
+        )
+        system_prompt = (
+            "You are LexVault AI, a secure legal institutional intelligence copilot for Indian advocates. "
+            "Answer strictly based on internal firm context and cite '[Knowledge Item #<id>].'"
+        )
+
+        full_answer = []
+        async for chunk in groq_client.stream(prompt=prompt, system_prompt=system_prompt, history=request.history):
+            full_answer.append(chunk)
+            yield f"data: {json.dumps({'type': 'token', 'token': chunk})}\n\n"
+
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
 @router.get("/history")
 async def get_chat_history(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    from sqlmodel import select, desc
     query = (
         select(ChatQuery)
-        .where(ChatQuery.user_id == current_user.id)
-        .order_by(desc(ChatQuery.created_at))
-        .limit(20)
+        .where(ChatQuery.firm_id == current_user.firm_id)
+        .order_by(ChatQuery.created_at.desc())
+        .limit(30)
     )
     res = await session.execute(query)
-    records = res.scalars().all()
-
-    return [
-        {
-            "id": r.id,
-            "question": r.question,
-            "answer": r.answer,
-            "guardrail_applied": r.guardrail_applied,
-            "created_at": r.created_at,
-        }
-        for r in records
-    ]
+    queries = res.scalars().all()
+    return queries

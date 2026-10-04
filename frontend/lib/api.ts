@@ -53,6 +53,7 @@ export const api = {
       if (params?.q) q.append("q", params.q);
       return fetchApi(`/api/knowledge?${q.toString()}`);
     },
+    get: (id: number | string) => fetchApi(`/api/knowledge/${id}`),
     semanticSearch: (query: string, practiceArea?: string) =>
       fetchApi("/api/knowledge/search", {
         method: "POST",
@@ -60,11 +61,61 @@ export const api = {
       }),
   },
   chat: {
-    send: (question: string, practiceArea?: string) =>
+    send: (question: string, practiceArea?: string, history?: any[], actionType?: string) =>
       fetchApi("/api/chat", {
         method: "POST",
-        body: JSON.stringify({ question, practice_area: practiceArea }),
+        body: JSON.stringify({ question, practice_area: practiceArea, history, action_type: actionType }),
       }),
+    stream: async (
+      question: string,
+      practiceArea?: string,
+      history?: any[],
+      actionType?: string,
+      onToken?: (token: string) => void,
+      onMeta?: (meta: any) => void
+    ) => {
+      const token = typeof window !== "undefined" ? localStorage.getItem("lexvault_token") : null;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch(`${API_BASE}/api/chat/stream`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ question, practice_area: practiceArea, history, action_type: actionType }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Chat stream request failed");
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) return;
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === "metadata" && onMeta) {
+                onMeta(data);
+              } else if (data.type === "token" && onToken) {
+                onToken(data.token);
+              }
+            } catch (e) {
+              // Ignore parse error on partial SSE frames
+            }
+          }
+        }
+      }
+    },
     history: () => fetchApi("/api/chat/history"),
   },
   graph: {
