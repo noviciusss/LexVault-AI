@@ -58,3 +58,6 @@ lerna-debug.log*
 .idea/
 *.swp
 *.swo
+frontend/test-results/
+frontend/playwright-report/
+*.zip

@@ -9,6 +9,7 @@ class AuditLogEntry(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     actor_id: Optional[int] = Field(default=None, foreign_key="users.id")
     actor_name: Optional[str] = Field(default="System")
+    firm_id: int = Field(default=1, index=True, foreign_key="firms.id")
     
     # action: CAPTURE, LOCAL_AI_CLEAN, PII_REMOVAL, STRATEGY_ABSTRACTION, APPROVAL, REJECTION, VECTOR_EMBED, GRAPH_INGEST, RAG_QUERY
     action: str = Field(index=True)
@@ -24,6 +25,7 @@ class AuditLogRead(SQLModel):
     id: int
     actor_id: Optional[int]
     actor_name: Optional[str]
+    firm_id: int
     action: str
     target_type: str
     target_id: Optional[int]

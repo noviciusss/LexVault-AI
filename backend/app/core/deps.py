@@ -15,14 +15,6 @@ async def get_current_user(
     session: AsyncSession = Depends(get_session),
 ) -> User:
     if not credentials:
-        # Default mock/demo user if not logged in to allow seamless dev testing
-        query = select(User).where((User.email == "rohit@chandrarao.law") | (User.email == "alice@firm.com"))
-        res = await session.execute(query)
-        user = res.scalars().first()
-        if not user:
-            user = (await session.execute(select(User))).scalars().first()
-        if user:
-            return user
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
@@ -37,7 +29,10 @@ async def get_current_user(
             detail="Invalid or expired token",
         )
 
-    user_id = int(payload["sub"])
+    try:
+        user_id = int(payload["sub"])
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=401, detail="Invalid token subject")
     query = select(User).where(User.id == user_id)
     result = await session.execute(query)
     user = result.scalar_one_or_none()

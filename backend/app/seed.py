@@ -297,6 +297,7 @@ async def auto_seed_if_empty(force: bool = False):
 
                 # Audit log
                 audit = AuditLogEntry(
+                    firm_id=firm_id,
                     actor_id=approver_id,
                     actor_name=approver_name,
                     action="KNOWLEDGE_PUBLISHED",
@@ -395,6 +396,7 @@ async def auto_seed_if_empty(force: bool = False):
             session.add(job)
 
             audit = AuditLogEntry(
+                firm_id=f_id,
                 actor_id=author_id,
                 actor_name=author_name,
                 action="STRATEGY_ABSTRACTED",
