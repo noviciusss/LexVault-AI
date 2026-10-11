@@ -1,237 +1,242 @@
 "use client";
-
-import React, { useEffect, useState } from "react";
-import {
-  CheckSquare,
-  CheckCircle2,
-  XCircle,
-  Edit3,
-  ShieldCheck,
-  AlertTriangle,
-  Loader2,
-  Sparkles,
-  ArrowRight,
-} from "lucide-react";
-import confetti from "canvas-confetti";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "framer-motion";
+import { CheckCircle2, ShieldCheck, Search, Edit3, Loader2, XCircle } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { errorMessage } from "@/lib/utils";
 import { useAppStore } from "@/store/useAppStore";
+import type { ApprovalItem } from "@/types/domain";
+import {
+  Badge,
+  Button,
+  Card,
+  Dialog,
+  EmptyState,
+  ErrorState,
+  Input,
+  PageHeader,
+  Skeleton,
+} from "@/components/ui/primitives";
+import { Reveal } from "@/components/ui/motion";
 
 export default function ApprovalsPage() {
-  const { currentUser, setPendingCount } = useAppStore();
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editedText, setEditedText] = useState("");
-  const [processingId, setProcessingId] = useState<number | null>(null);
-
-  const loadApprovals = async () => {
-    try {
-      const data = await api.approvals.list();
-      setItems(data || []);
-      setPendingCount(data?.length || 0);
-    } catch (err) {
-      console.error("Failed to load approvals:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadApprovals();
-  }, []);
-
-  const handleAction = async (itemId: number, action: "approve" | "reject") => {
-    setProcessingId(itemId);
-    try {
-      const textToSubmit = editingId === itemId ? editedText : undefined;
-      await api.approvals.takeAction(itemId, action, textToSubmit);
-
-      if (action === "approve") {
-        confetti({
-          particleCount: 50,
-          spread: 60,
-          origin: { y: 0.8 },
-          colors: ["#C9A24B", "#2FBF8F", "#ffffff"],
-        });
-      }
-
-      // Remove from list
-      setItems((prev) => prev.filter((i) => i.id !== itemId));
-      setPendingCount(items.length - 1);
-      setEditingId(null);
-    } catch (err: any) {
-      alert(err.message || "Failed to submit approval action");
-    } finally {
-      setProcessingId(null);
-    }
-  };
-
+  const user = useAppStore((state) => state.currentUser);
+  const client = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [editing, setEditing] = useState<number | null>(null);
+  const [text, setText] = useState("");
+  const [rejecting, setRejecting] = useState<number | null>(null);
+  const [reason, setReason] = useState("");
+  const canReview = user.role === "admin" || user.role === "reviewer";
+  const query = useQuery<ApprovalItem[]>({
+    queryKey: ["approvals", user.firm_id],
+    queryFn: () => api.approvals.list(),
+  });
+  const mutation = useMutation({
+    mutationFn: ({ id, action }: { id: number; action: "approve" | "reject" }) =>
+      api.approvals.takeAction(
+        id,
+        action,
+        editing === id ? text : undefined,
+        action === "reject" ? reason : undefined,
+      ),
+    onSuccess: async (_, variables) => {
+      client.setQueryData<ApprovalItem[]>(["approvals", user.firm_id], (items) =>
+        items?.filter((item) => item.id !== variables.id),
+      );
+      setEditing(null);
+      setRejecting(null);
+      setReason("");
+      toast.success(
+        variables.action === "approve"
+          ? "Approved. Indexing will continue in the pipeline."
+          : "Submission rejected with reviewer feedback.",
+      );
+      await client.invalidateQueries({ queryKey: ["stats"] });
+      await client.invalidateQueries({ queryKey: ["knowledge"] });
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+  const items =
+    query.data?.filter((item) =>
+      `${item.title} ${item.practice_area}`.toLowerCase().includes(search.toLowerCase()),
+    ) || [];
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl bg-surface border border-surface-border">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-status-warning uppercase tracking-wider mb-1">
-            <AlertTriangle className="w-4 h-4" />
-            <span>Stage 5: Human-In-The-Loop Approval Gate</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-content-primary">
-            Senior Partner Review Queue
-          </h1>
-          <p className="text-xs text-content-secondary mt-1">
-            Review sanitized legal matter facts and abstracted strategy before firm-wide publication to Qdrant & Neo4j.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-elevated border border-surface-border text-xs">
-          <span className="text-content-muted">Reviewer:</span>
-          <span className="font-semibold text-accent">{currentUser.name}</span>
-        </div>
+    <Reveal className="mx-auto max-w-6xl space-y-6">
+      <PageHeader
+        eyebrow="Stage 5 · Human review"
+        title="Good knowledge starts with careful review."
+        description="Inspect sanitized facts and reusable legal strategy before it becomes part of your firm’s institutional knowledge."
+        action={<Badge>{query.data?.length || 0} awaiting review</Badge>}
+      />
+      {!canReview && (
+        <Card className="border-accent/25 p-4 text-sm text-content-secondary">
+          You can inspect your firm’s submissions. Switch to the senior partner demo role to approve
+          or reject.
+        </Card>
+      )}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-3.5 h-4 w-4 text-content-muted" />
+        <Input
+          aria-label="Filter pending submissions"
+          placeholder="Search title or practice area…"
+          className="pl-9"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
       </div>
-
-      {/* Approvals List */}
-      {loading ? (
-        <div className="p-12 text-center text-content-muted text-xs flex items-center justify-center gap-2">
-          <Loader2 className="w-4 h-4 animate-spin text-accent" />
-          <span>Loading pending submissions...</span>
+      {query.isError ? (
+        <ErrorState message={errorMessage(query.error)} retry={() => query.refetch()} />
+      ) : query.isPending ? (
+        <div className="space-y-4">
+          <Skeleton className="h-72" />
+          <Skeleton className="h-72" />
         </div>
-      ) : items.length === 0 ? (
-        <div className="p-12 text-center rounded-2xl bg-surface border border-surface-border space-y-3">
-          <div className="w-12 h-12 rounded-full bg-status-success/15 text-status-success mx-auto flex items-center justify-center border border-status-success/30">
-            <CheckCircle2 className="w-6 h-6" />
-          </div>
-          <h3 className="text-base font-semibold text-content-primary">Queue Clean — All Clear!</h3>
-          <p className="text-xs text-content-secondary max-w-sm mx-auto">
-            No items are currently awaiting partner sign-off. New submissions from the Capture Intake will appear here.
-          </p>
-        </div>
+      ) : !items.length ? (
+        <EmptyState
+          title={search ? "No matching submissions" : "Your review queue is clear"}
+          description={
+            search
+              ? "Try another title or practice area."
+              : "New captured insights will appear here after sanitization and abstraction."
+          }
+        />
       ) : (
-        <div className="space-y-6">
-          {items.map((item) => {
-            const isEditing = editingId === item.id;
-            const isProcessing = processingId === item.id;
-
-            return (
-              <div
-                key={item.id}
-                className="p-6 rounded-2xl bg-surface border border-surface-border hover:border-accent/30 transition-all space-y-5"
-              >
-                {/* Item Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-surface-border pb-4">
+        <AnimatePresence>
+          {items.map((item) => (
+            <motion.div
+              key={item.id}
+              layout
+              exit={{ opacity: 0, x: 30, height: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <Card className="mb-5 p-5 sm:p-6">
+                <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-accent/15 text-accent border border-accent/25">
-                        {item.practice_area || "General"}
-                      </span>
-                      <span className="text-xs text-content-muted">Item #{item.id}</span>
-                    </div>
-                    <h3 className="text-base font-bold text-content-primary">{item.title}</h3>
+                    <Badge>{item.practice_area}</Badge>
+                    <h2 className="mt-3 text-lg font-semibold">{item.title}</h2>
+                    <p className="mt-1 text-xs text-content-muted">
+                      Submission #{item.id} · Author #{item.author_id}
+                    </p>
                   </div>
-
-                  <div className="text-[11px] text-status-warning bg-status-warning/10 px-3 py-1 rounded-full border border-status-warning/20 font-medium self-start">
-                    Pending Partner Gatekeeper
-                  </div>
+                  <Badge className="border-status-warning/30 bg-status-warning/10 text-status-warning">
+                    Awaiting sign-off
+                  </Badge>
                 </div>
-
-                {/* Side-by-Side: Sanitized Facts vs Abstracted Strategy */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Left: Sanitized Facts + PII Diff */}
-                  <div className="p-4 rounded-xl bg-surface-elevated border border-surface-border space-y-3">
-                    <div className="flex items-center justify-between text-xs font-semibold text-content-secondary">
-                      <span className="flex items-center gap-1.5">
-                        <ShieldCheck className="w-4 h-4 text-accent" />
-                        <span>Sanitized Fact Record (PII Stripped)</span>
-                      </span>
-                    </div>
-
-                    <div className="text-[11px] text-content-primary font-mono leading-relaxed max-h-48 overflow-y-auto">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-xl border border-surface-border bg-surface-elevated/50 p-4">
+                    <h3 className="mb-3 flex items-center gap-2 text-sm font-medium">
+                      <ShieldCheck className="h-4 w-4 text-accent" />
+                      Sanitized facts
+                    </h3>
+                    <p className="max-h-80 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-content-secondary">
                       {item.sanitized_text}
+                    </p>
+                    <div className="mt-4 border-t border-surface-border pt-3 text-xs text-content-muted">
+                      {item.pii_entities_found.length} identifiers removed ·{" "}
+                      {Array.from(
+                        new Set(item.pii_entities_found.map((entity) => entity.entity_type)),
+                      ).join(", ") || "No detected identifiers"}
                     </div>
-
-                    {item.pii_entities_found && item.pii_entities_found.length > 0 && (
-                      <div className="pt-2 border-t border-surface-border/50 text-[10px] text-content-muted">
-                        <span className="font-semibold text-status-danger">Presidio Redacted: </span>
-                        {item.pii_entities_found.map((e: any) => e.entity_type).join(", ") || "Client identifiers"}
-                      </div>
-                    )}
                   </div>
-
-                  {/* Right: Abstracted Strategy */}
-                  <div className="p-4 rounded-xl bg-surface-elevated border border-accent/30 space-y-3">
-                    <div className="flex items-center justify-between text-xs font-semibold text-accent">
-                      <span className="flex items-center gap-1.5">
-                        <Sparkles className="w-4 h-4" />
-                        <span>Proposed Institutional Precedent</span>
-                      </span>
-                      {!isEditing && (
-                        <button
+                  <div className="rounded-xl border border-accent/25 p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <h3 className="text-sm font-medium text-accent">Proposed firm insight</h3>
+                      {canReview && (
+                        <Button
+                          size="small"
+                          variant="ghost"
                           onClick={() => {
-                            setEditingId(item.id);
-                            setEditedText(item.abstracted_insight);
+                            setEditing(item.id);
+                            setText(item.abstracted_insight);
                           }}
-                          className="text-[11px] hover:underline flex items-center gap-1 text-content-secondary hover:text-accent"
                         >
-                          <Edit3 className="w-3 h-3" />
-                          <span>Edit</span>
-                        </button>
+                          <Edit3 className="h-3.5 w-3.5" />
+                          Edit
+                        </Button>
                       )}
                     </div>
-
-                    {isEditing ? (
+                    {editing === item.id ? (
                       <textarea
-                        rows={6}
-                        value={editedText}
-                        onChange={(e) => setEditedText(e.target.value)}
-                        className="w-full p-3 rounded-lg bg-surface border border-accent text-[11px] text-content-primary focus:outline-none leading-relaxed"
+                        aria-label="Edit proposed insight"
+                        rows={10}
+                        className="w-full rounded-xl border border-surface-border bg-surface-elevated p-3 text-sm leading-relaxed"
+                        value={text}
+                        onChange={(event) => setText(event.target.value)}
                       />
                     ) : (
-                      <div className="text-[11px] text-content-primary leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">
+                      <p className="max-h-80 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed">
                         {item.abstracted_insight}
-                      </div>
+                      </p>
                     )}
                   </div>
                 </div>
-
-                {/* Partner Action Bar */}
-                <div className="flex items-center justify-between pt-3 border-t border-surface-border">
-                  <div className="text-[11px] text-content-muted">
-                    Sign-off logs actor #{currentUser.id} into permanent immutable audit trail.
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => handleAction(item.id, "reject")}
-                      disabled={isProcessing}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-surface-elevated hover:bg-status-danger/15 hover:text-status-danger text-content-secondary text-xs font-medium border border-surface-border transition-all disabled:opacity-50"
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-surface-border pt-4">
+                  <p className="text-xs text-content-muted">
+                    Reviewer identity and decision are recorded in the audit trail.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="danger"
+                      disabled={!canReview || mutation.isPending}
+                      onClick={() => setRejecting(item.id)}
                     >
-                      <XCircle className="w-3.5 h-3.5" />
-                      <span>Reject</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleAction(item.id, "approve")}
-                      disabled={isProcessing}
-                      className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-status-success hover:bg-status-success/90 text-background text-xs font-bold transition-all shadow-sm disabled:opacity-50 active:scale-95"
+                      <XCircle className="h-4 w-4" />
+                      Reject
+                    </Button>
+                    <Button
+                      disabled={
+                        !canReview || mutation.isPending || (editing === item.id && !text.trim())
+                      }
+                      onClick={() => mutation.mutate({ id: item.id, action: "approve" })}
                     >
-                      {isProcessing ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Publishing to Vector & Graph...</span>
-                        </>
+                      {mutation.isPending && mutation.variables?.id === item.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
-                        <>
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>{isEditing ? "Save Edits & Approve" : "Approve & Publish"}</span>
-                        </>
+                        <CheckCircle2 className="h-4 w-4" />
                       )}
-                    </button>
+                      {editing === item.id ? "Save & approve" : "Approve insight"}
+                    </Button>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              </Card>
+            </motion.div>
+          ))}
+        </AnimatePresence>
       )}
-    </div>
+      <Dialog
+        open={rejecting !== null}
+        onOpenChange={(open) => {
+          if (!open) setRejecting(null);
+        }}
+        title="Return this insight with feedback"
+        description="Explain what needs to change so the author can improve the submission."
+      >
+        <label htmlFor="rejection-reason" className="text-sm">
+          Reviewer feedback
+        </label>
+        <textarea
+          id="rejection-reason"
+          className="mt-2 w-full rounded-xl border border-surface-border bg-surface-elevated p-3 text-sm"
+          rows={4}
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+        />
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="secondary" onClick={() => setRejecting(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            disabled={!reason.trim() || mutation.isPending}
+            onClick={() => rejecting && mutation.mutate({ id: rejecting, action: "reject" })}
+          >
+            Reject with feedback
+          </Button>
+        </div>
+      </Dialog>
+    </Reveal>
   );
 }

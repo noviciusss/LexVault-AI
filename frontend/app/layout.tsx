@@ -1,24 +1,15 @@
 import type { Metadata } from "next";
-import { Inter, Source_Serif_4 } from "next/font/google";
+import "@fontsource-variable/inter";
+import "@fontsource-variable/source-serif-4";
+import "@fontsource-variable/noto-sans-devanagari";
 import "./globals.css";
-import Navbar from "@/components/Navbar";
-import Sidebar from "@/components/Sidebar";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
-
-const sourceSerif = Source_Serif_4({
-  subsets: ["latin"],
-  variable: "--font-serif",
-  display: "swap",
-});
+import Providers from "@/components/Providers";
+import AppShell from "@/components/layout/AppShell";
 
 export const metadata: Metadata = {
-  title: "LexVault AI — Secure Institutional Legal Knowledge Platform",
-  description: "Capture, sanitize, abstract, and safely retrieve institutional legal expertise with an 8-stage guardrailed AI pipeline.",
+  title: "LexVault — Indian Constitutional Research",
+  description:
+    "Explore the Constitution of India in English and Hindi, connect doctrines and landmark cases, and research reviewed firm knowledge.",
 };
 
 export default function RootLayout({
@@ -27,15 +18,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`dark ${inter.variable} ${sourceSerif.variable}`}>
+    <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen flex flex-col bg-background text-content-primary antialiased">
-        <Navbar />
-        <div className="flex-1 flex overflow-hidden">
-          <Sidebar />
-          <main className="flex-1 overflow-y-auto min-h-[calc(100vh-4rem)] p-6 md:p-8">
-            {children}
-          </main>
-        </div>
+        <Providers>
+          <AppShell>{children}</AppShell>
+        </Providers>
       </body>
     </html>
   );

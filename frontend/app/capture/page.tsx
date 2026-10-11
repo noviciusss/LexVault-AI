@@ -1,761 +1,594 @@
 "use client";
-
-import React, { useState, useRef, Suspense, useMemo } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import * as Tabs from "@radix-ui/react-tabs";
+import { toast } from "sonner";
 import {
+  ArrowRight,
+  BookOpen,
   FileText,
   Mic,
   UploadCloud,
-  ArrowRight,
-  Shield,
-  Loader2,
-  Sparkles,
-  StopCircle,
   Play,
-  BookOpen,
-  CheckCircle2,
-  ChevronDown,
-  ChevronUp,
+  Square,
+  X,
+  Loader2,
   Search,
-  Scale,
-  Building2,
-  Gavel,
-  Download,
+  ShieldCheck,
   Volume2,
-  Zap,
-  FileCheck2,
+  CheckCircle2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAppStore } from "@/store/useAppStore";
-import { INDIAN_LEGAL_TEMPLATES, IndianLegalTemplate } from "./indian_cases_data";
+import { errorMessage, cn } from "@/lib/utils";
+import { INDIAN_LEGAL_TEMPLATES, type IndianLegalTemplate } from "./indian_cases_data";
+import {
+  Badge,
+  Button,
+  Card,
+  Dialog,
+  Input,
+  PageHeader,
+  LoadingState,
+} from "@/components/ui/primitives";
+import { Reveal } from "@/components/ui/motion";
 
+const schema = z.object({
+  title: z.string().trim().min(3, "Add a title with at least 3 characters."),
+  practiceArea: z.string().min(1),
+  language: z.enum(["eng", "hin"]),
+  text: z.string(),
+});
+type CaptureForm = z.infer<typeof schema>;
+type Mode = "text" | "voice" | "ocr";
 function CaptureContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const initialMode = searchParams.get("mode") || "text";
-
-  const { setActiveJobId } = useAppStore();
-
-  const [mode, setMode] = useState<"text" | "voice" | "ocr">(
-    initialMode as any
+  const params = useSearchParams();
+  const user = useAppStore((state) => state.currentUser);
+  const setActiveJobId = useAppStore((state) => state.setActiveJobId);
+  const requested = params.get("mode");
+  const [mode, setMode] = useState<Mode>(
+    requested === "voice" || requested === "ocr" ? requested : "text",
   );
-  const [title, setTitle] = useState(INDIAN_LEGAL_TEMPLATES[0].title);
-  const [practiceArea, setPracticeArea] = useState(INDIAN_LEGAL_TEMPLATES[0].practice_area);
-  const [language, setLanguage] = useState(INDIAN_LEGAL_TEMPLATES[0].language); // "eng" | "hin"
-  const [textContent, setTextContent] = useState(INDIAN_LEGAL_TEMPLATES[0].content);
+  const [step, setStep] = useState(1);
   const [file, setFile] = useState<File | null>(null);
+  const [voice, setVoice] = useState<File | null>(null);
+  const [preview, setPreview] = useState("");
+  const [recording, setRecording] = useState(false);
+  const [seconds, setSeconds] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
-
-  // 15 Case Templates Showcase State
-  const [activeTemplateId, setActiveTemplateId] = useState<string>(INDIAN_LEGAL_TEMPLATES[0].id);
-  const [templateCategory, setTemplateCategory] = useState<string>("All");
-  const [templateSearch, setTemplateSearch] = useState<string>("");
-  const [showTemplateLibrary, setShowTemplateLibrary] = useState<boolean>(true);
-
-  // Voice recording state
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingSeconds, setRecordingSeconds] = useState(0);
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const timerRef = useRef<any>(null);
-
-  // Dynamic Audio Preview URL
-  const audioPreviewUrl = useMemo(() => {
-    if (!audioBlob) return null;
-    return URL.createObjectURL(audioBlob);
-  }, [audioBlob]);
-
+  const [library, setLibrary] = useState(false);
+  const [filter, setFilter] = useState("");
+  const [dragging, setDragging] = useState(false);
+  const recorder = useRef<MediaRecorder | null>(null);
+  const stream = useRef<MediaStream | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const form = useForm<CaptureForm>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      title: "",
+      practiceArea: "Constitutional Law & Fundamental Rights",
+      language: "eng",
+      text: "",
+    },
+  });
+  const values = form.watch();
+  const draftKey = `lexvault_capture_draft_${user.firm_id}_${user.id}`;
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(draftKey);
+      if (stored) form.reset(JSON.parse(stored));
+    } catch {
+      /* Invalid drafts are ignored. */
+    }
+    setDraftLoaded(true);
+  }, [draftKey, form]);
+  useEffect(() => {
+    if (!draftLoaded) return;
+    const timer = setTimeout(() => sessionStorage.setItem(draftKey, JSON.stringify(values)), 700);
+    return () => clearTimeout(timer);
+  }, [values, draftKey, draftLoaded]);
+  useEffect(() => {
+    if (!voice) {
+      setPreview("");
+      return;
+    }
+    const url = URL.createObjectURL(voice);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [voice]);
+  useEffect(() => {
+    if (!recording) return;
+    const timer = setInterval(() => setSeconds((value) => value + 1), 1000);
+    return () => clearInterval(timer);
+  }, [recording]);
+  useEffect(
+    () => () => {
+      if (recorder.current?.state === "recording") {
+        recorder.current.onstop = null;
+        recorder.current.stop();
+      }
+      stream.current?.getTracks().forEach((track) => track.stop());
+    },
+    [],
+  );
+  const chooseFile = (candidate?: File) => {
+    if (!candidate) return;
+    if (!/\.(pdf|png|jpe?g)$/i.test(candidate.name)) {
+      toast.error("Choose a PDF, PNG, or JPG document.");
+      return;
+    }
+    if (candidate.size > 25 * 1024 * 1024) {
+      toast.error("Documents must be smaller than 25 MB.");
+      return;
+    }
+    setFile(candidate);
+  };
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = recorder;
+      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined")
+        throw new Error("Recording is unavailable in this browser. Upload an audio file instead.");
+      stream.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = ["audio/webm", "audio/mp4", "audio/ogg"].find((type) =>
+        MediaRecorder.isTypeSupported(type),
+      );
+      const instance = new MediaRecorder(stream.current, mimeType ? { mimeType } : undefined);
+      recorder.current = instance;
       const chunks: BlobPart[] = [];
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
+      instance.ondataavailable = (event) => {
+        if (event.data.size) chunks.push(event.data);
       };
-
-      recorder.onstop = () => {
-        const blob = new Blob(chunks, { type: "audio/webm" });
-        setAudioBlob(blob);
-        stream.getTracks().forEach((track) => track.stop());
+      instance.onstop = () => {
+        const type = instance.mimeType || "audio/webm";
+        setVoice(
+          new File(
+            chunks,
+            `voice_memo.${type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm"}`,
+            { type },
+          ),
+        );
+        stream.current?.getTracks().forEach((track) => track.stop());
+        setRecording(false);
       };
-
-      recorder.start();
-      setIsRecording(true);
-      setRecordingSeconds(0);
-      timerRef.current = setInterval(() => {
-        setRecordingSeconds((prev) => prev + 1);
-      }, 1000);
-    } catch (err) {
-      alert("Microphone access not available. You can test using Text or OCR mode.");
+      instance.start();
+      setSeconds(0);
+      setRecording(true);
+    } catch (error) {
+      toast.error(errorMessage(error));
+      stream.current?.getTracks().forEach((track) => track.stop());
     }
   };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      clearInterval(timerRef.current);
-    }
-  };
-
-  const handleSelectTemplate = (tpl: IndianLegalTemplate) => {
-    setActiveTemplateId(tpl.id);
-    setTitle(tpl.title);
-    setPracticeArea(tpl.practice_area);
-    setLanguage(tpl.language);
-    setTextContent(tpl.content);
+  const loadTemplate = (template: IndianLegalTemplate) => {
+    form.reset({
+      title: template.title,
+      practiceArea: template.practice_area,
+      language: template.language === "hin" ? "hin" : "eng",
+      text: template.content,
+    });
     setMode("text");
-
-    // Scroll to the form
-    const formElement = document.getElementById("capture-intake-form");
-    if (formElement) {
-      formElement.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    setLibrary(false);
+    setStep(1);
+    toast.success("Case template loaded");
   };
-
-  // 1-Click Demo Asset Loaders
-  const handleLoadDemoVoice = async () => {
+  const demo = async (type: "voice" | "ocr") => {
     setDemoLoading(true);
     try {
-      const res = await fetch("/demo-assets/sample_voice_briefing.wav");
-      if (!res.ok) throw new Error("Failed to load sample voice asset");
-      const blob = await res.blob();
-      const wavFile = new File([blob], "sample_voice_briefing.wav", { type: "audio/wav" });
-      setFile(wavFile);
-      setAudioBlob(blob);
-      setMode("voice");
-      setTitle("Client Dictation: Bombay High Court Interim Injunction & S.27 Defense");
-      setPracticeArea("Arbitration & ADR");
-      setLanguage("eng");
-
-      const formElement = document.getElementById("capture-intake-form");
-      if (formElement) {
-        formElement.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    } catch (err: any) {
-      alert("Error loading demo audio: " + err.message);
+      const path =
+        type === "voice" ? "sample_voice_briefing.wav" : "sample_commercial_contract.pdf";
+      const response = await fetch(`/demo-assets/${path}`);
+      if (!response.ok) throw new Error("The demo attachment could not be loaded");
+      const blob = await response.blob();
+      const asset = new File([blob], path, { type: blob.type });
+      if (type === "voice") setVoice(asset);
+      else setFile(asset);
+      setMode(type);
+      form.setValue(
+        "title",
+        type === "voice" ? "Bombay High Court briefing" : "Commercial contract research",
+      );
+      setStep(1);
+      toast.success("Demo attachment is ready");
+    } catch (error) {
+      toast.error(errorMessage(error));
     } finally {
       setDemoLoading(false);
     }
   };
-
-  const handleLoadDemoPdf = async () => {
-    setDemoLoading(true);
-    try {
-      const res = await fetch("/demo-assets/sample_commercial_contract.pdf");
-      if (!res.ok) throw new Error("Failed to load sample PDF contract");
-      const blob = await res.blob();
-      const pdfFile = new File([blob], "sample_commercial_contract.pdf", { type: "application/pdf" });
-      setFile(pdfFile);
-      setMode("ocr");
-      setTitle("Commercial Asset Transfer & IP Assignment Agreement (TCS v. Bharat Infotech)");
-      setPracticeArea("Indian Contract Act & Commercial");
-      setLanguage("eng");
-
-      const formElement = document.getElementById("capture-intake-form");
-      if (formElement) {
-        formElement.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    } catch (err: any) {
-      alert("Error loading demo PDF: " + err.message);
-    } finally {
-      setDemoLoading(false);
+  const ready =
+    mode === "text" ? !!values.text.trim() : mode === "voice" ? !!voice && !recording : !!file;
+  const submit = async (data: CaptureForm) => {
+    if (!ready) {
+      toast.error("Add content before launching the pipeline");
+      return;
     }
-  };
-
-  // Categories list
-  const categories = ["All", ...Array.from(new Set(INDIAN_LEGAL_TEMPLATES.map((t) => t.category)))];
-
-  // Filtered templates
-  const filteredTemplates = INDIAN_LEGAL_TEMPLATES.filter((t) => {
-    const matchesCat = templateCategory === "All" || t.category === templateCategory;
-    const matchesSearch =
-      !templateSearch.trim() ||
-      t.title.toLowerCase().includes(templateSearch.toLowerCase()) ||
-      t.badge.toLowerCase().includes(templateSearch.toLowerCase()) ||
-      t.summary.toLowerCase().includes(templateSearch.toLowerCase()) ||
-      t.practice_area.toLowerCase().includes(templateSearch.toLowerCase());
-    return matchesCat && matchesSearch;
-  });
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
     setSubmitting(true);
-
     try {
-      const formData = new FormData();
-      formData.append("input_type", mode);
-      formData.append("title", title || "Attorney Working Matter Note");
-      formData.append("practice_area", practiceArea);
-      formData.append("language", language);
-
-      if (mode === "text") {
-        formData.append("text_content", textContent);
-      } else if (mode === "voice") {
-        if (audioBlob) {
-          formData.append("file", audioBlob, "voice_memo.webm");
-        } else if (file) {
-          formData.append("file", file);
-        } else {
-          formData.append("text_content", textContent);
-        }
-      } else if (mode === "ocr") {
-        if (file) {
-          formData.append("file", file);
-        } else {
-          formData.append("text_content", textContent);
-        }
-      }
-
-      const res = await api.capture.submit(formData);
-      if (res && res.job_id) {
-        setActiveJobId(res.job_id);
-        router.push(`/pipeline/${res.job_id}`);
-      }
-    } catch (err: any) {
-      alert(err.message || "Failed to submit capture to pipeline");
+      const body = new FormData();
+      body.append("input_type", mode);
+      body.append("title", data.title);
+      body.append("practice_area", data.practiceArea);
+      body.append("language", data.language);
+      if (mode === "text") body.append("text_content", data.text);
+      else body.append("file", (mode === "voice" ? voice : file)!);
+      const result = await api.capture.submit(body);
+      sessionStorage.removeItem(draftKey);
+      setActiveJobId(result.job_id);
+      toast.success("Capture accepted. Follow its progress in the pipeline.");
+      router.push(`/pipeline/${result.job_id}`);
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
       setSubmitting(false);
     }
   };
-
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-fade-in">
-      {/* Header */}
-      <div>
-        <div className="flex items-center gap-2 text-xs font-semibold text-accent uppercase tracking-wider mb-1">
-          <Shield className="w-4 h-4" />
-          <span>Stage 1: On-Device Capture Intake</span>
-        </div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-content-primary">
-          Capture Attorney Working Knowledge
-        </h1>
-        <p className="text-xs text-content-secondary mt-1">
-          Select from 15 ready-to-use Indian case templates, or test on-device Voice transcription and Document OCR using one-click demo presets.
-        </p>
-      </div>
-
-      {/* ---------------- CAPSTONE EVALUATOR 1-CLICK DEMO PRESETS ---------------- */}
-      <div className="p-5 rounded-2xl bg-gradient-to-r from-accent/15 via-surface to-surface-elevated border border-accent/40 shadow-gold/10 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-surface-border/80 pb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-accent text-background flex items-center justify-center font-bold">
-              <Zap className="w-4 h-4 fill-background" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-content-primary flex items-center gap-2">
-                <span>Capstone Jury & Evaluator Demo Launchers</span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-accent/20 text-accent font-semibold">Live Testing Assets</span>
-              </h2>
-              <p className="text-[11px] text-content-secondary">
-                Click below to instantly attach pre-generated Indian legal assets to prove Voice & OCR extraction without hunting for files.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Preset 1: Voice Recording Memo */}
-          <div className="p-4 rounded-xl bg-surface border border-surface-border hover:border-accent/50 transition-all space-y-3 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between gap-2 mb-1.5">
-                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-accent/10 text-accent border border-accent/20 flex items-center gap-1">
-                  <Mic className="w-3 h-3" />
-                  <span>VOICE TRANSCRIPTION</span>
-                </span>
-                <span className="text-[10px] text-content-muted">16kHz PCM WAV Audio</span>
-              </div>
-              <h3 className="text-xs font-bold text-content-primary">
-                Bombay HC Interim Injunction & Section 27 Defense Briefing
-              </h3>
-              <p className="text-[11px] text-content-secondary mt-1">
-                Audio dictation regarding Bombay High Court Commercial Suit No. 412/2024 and invalidity of post-service restrictive covenants.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-surface-border text-xs gap-2">
-              <button
-                type="button"
-                onClick={handleLoadDemoVoice}
-                disabled={demoLoading}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-accent text-background text-xs font-bold hover:bg-accent-hover active:scale-95 transition-all shadow-sm"
-              >
-                {demoLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-background" />}
-                <span>1-Click Load Voice Demo</span>
-              </button>
-
-              <a
-                href="/demo-assets/sample_voice_briefing.wav"
-                download="sample_voice_briefing.wav"
-                title="Download local WAV audio file"
-                className="flex items-center gap-1 px-3 py-2 rounded-lg bg-surface-elevated hover:bg-surface border border-surface-border text-content-secondary hover:text-content-primary text-xs font-medium transition-colors"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">WAV</span>
-              </a>
-            </div>
-          </div>
-
-          {/* Preset 2: Document OCR PDF */}
-          <div className="p-4 rounded-xl bg-surface border border-surface-border hover:border-accent/50 transition-all space-y-3 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between gap-2 mb-1.5">
-                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-accent/10 text-accent border border-accent/20 flex items-center gap-1">
-                  <UploadCloud className="w-3 h-3" />
-                  <span>DOCUMENT OCR / PDF</span>
-                </span>
-                <span className="text-[10px] text-content-muted">2-Page Formal Contract PDF</span>
-              </div>
-              <h3 className="text-xs font-bold text-content-primary">
-                Commercial Asset Transfer Agreement (TCS v. Bharat Infotech)
-              </h3>
-              <p className="text-[11px] text-content-secondary mt-1">
-                Formal legal contract with arbitration seat in Mumbai (Perkins Eastman) and confidential counsel notices.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-surface-border text-xs gap-2">
-              <button
-                type="button"
-                onClick={handleLoadDemoPdf}
-                disabled={demoLoading}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-accent text-background text-xs font-bold hover:bg-accent-hover active:scale-95 transition-all shadow-sm"
-              >
-                {demoLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                <span>1-Click Load Contract PDF</span>
-              </button>
-
-              <a
-                href="/demo-assets/sample_commercial_contract.pdf"
-                download="sample_commercial_contract.pdf"
-                title="Download local PDF contract"
-                className="flex items-center gap-1 px-3 py-2 rounded-lg bg-surface-elevated hover:bg-surface border border-surface-border text-content-secondary hover:text-content-primary text-xs font-medium transition-colors"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">PDF</span>
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ---------------- 15 READY-TO-SHOW INDIAN CASE TEMPLATES ---------------- */}
-      <div className="rounded-2xl bg-surface border border-surface-border shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-surface-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface-elevated/40">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center text-accent">
-              <BookOpen className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-content-primary">
-                  Ready-to-Test Indian Legal Cases & Scenarios (15 Pre-Loaded Templates)
-                </h3>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-status-success/15 text-status-success border border-status-success/30 font-semibold">
-                  15 Scenarios
-                </span>
-              </div>
-              <p className="text-xs text-content-secondary mt-0.5">
-                Click any case to populate Title, Practice Area, and factual legal notes ready to run through the 8-stage pipeline.
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setShowTemplateLibrary(!showTemplateLibrary)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface border border-surface-border text-xs text-content-secondary hover:text-content-primary transition-colors self-start sm:self-auto"
+    <Reveal className="mx-auto max-w-5xl space-y-6">
+      <PageHeader
+        eyebrow="Stage 1 · Capture working knowledge"
+        title="Preserve the insight behind the matter."
+        description="Start with constitutional reasoning, a working note, voice memo, or document. Sanitization and partner review follow in the pipeline."
+        action={
+          <Button variant="secondary" onClick={() => setLibrary(true)}>
+            <BookOpen className="h-4 w-4" />
+            Case templates
+          </Button>
+        }
+      />
+      <div className="flex flex-wrap items-center gap-3 text-xs">
+        {["Capture", "Review", "Launch"].map((label, index) => (
+          <div
+            key={label}
+            className={cn(
+              "flex items-center gap-2",
+              step >= index + 1 ? "text-accent" : "text-content-muted",
+            )}
           >
-            <span>{showTemplateLibrary ? "Collapse Library" : "Show All 15 Templates"}</span>
-            {showTemplateLibrary ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
-        </div>
-
-        {showTemplateLibrary && (
-          <div className="p-5 space-y-4">
-            {/* Category Filter Pills & Search */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-                {categories.map((cat) => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setTemplateCategory(cat)}
-                    className={`px-3 py-1.5 rounded-lg whitespace-nowrap text-xs transition-all ${
-                      templateCategory === cat
-                        ? "bg-accent/20 text-accent font-semibold border border-accent/40 shadow-sm"
-                        : "bg-surface-elevated text-content-secondary hover:text-content-primary border border-surface-border"
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-
-              <div className="relative min-w-[200px]">
-                <Search className="w-3.5 h-3.5 text-content-muted absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Filter 15 cases..."
-                  value={templateSearch}
-                  onChange={(e) => setTemplateSearch(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-surface-elevated border border-surface-border text-xs text-content-primary focus:outline-none focus:border-accent"
-                />
-              </div>
-            </div>
-
-            {/* 15 Cases Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 max-h-[420px] overflow-y-auto pr-1">
-              {filteredTemplates.map((tpl) => {
-                const isSelected = activeTemplateId === tpl.id;
-                return (
-                  <div
-                    key={tpl.id}
-                    onClick={() => handleSelectTemplate(tpl)}
-                    className={`p-4 rounded-xl border text-left cursor-pointer transition-all flex flex-col justify-between space-y-2.5 ${
-                      isSelected
-                        ? "bg-accent/10 border-accent/50 shadow-md ring-1 ring-accent/30"
-                        : "bg-surface-elevated hover:bg-surface border-surface-border hover:border-accent/30 shadow-sm"
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-surface border border-surface-border text-accent">
-                          {tpl.badge}
-                        </span>
-                        <span className="text-[10px] text-content-muted">
-                          {tpl.language === "hin" ? "हिन्दी / Eng" : "English"}
-                        </span>
-                      </div>
-                      <h4 className="text-xs font-bold text-content-primary line-clamp-2 leading-snug">
-                        {tpl.title}
-                      </h4>
-                      <p className="text-[11px] text-content-secondary line-clamp-2 mt-1 leading-relaxed">
-                        {tpl.summary}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-2 border-t border-surface-border/60 text-[11px]">
-                      <span className="text-content-muted truncate max-w-[150px]">
-                        {tpl.category}
-                      </span>
-                      <button
-                        type="button"
-                        className={`font-semibold flex items-center gap-1 ${
-                          isSelected ? "text-accent" : "text-content-secondary hover:text-accent"
-                        }`}
-                      >
-                        {isSelected ? (
-                          <>
-                            <CheckCircle2 className="w-3.5 h-3.5 text-status-success" />
-                            <span>Loaded</span>
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="w-3.5 h-3.5" />
-                            <span>Load Case</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Mode Switcher Tabs */}
-      <div className="grid grid-cols-3 gap-3 p-1 rounded-xl bg-surface-elevated border border-surface-border">
-        <button
-          type="button"
-          onClick={() => setMode("text")}
-          className={`flex items-center justify-center gap-2 py-3 rounded-lg text-xs font-medium transition-all ${
-            mode === "text"
-              ? "bg-accent/20 text-accent border border-accent/40 font-semibold shadow-sm"
-              : "text-content-secondary hover:text-content-primary"
-          }`}
-        >
-          <FileText className="w-4 h-4" />
-          <span>Dictated / Typed Notes</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setMode("voice")}
-          className={`flex items-center justify-center gap-2 py-3 rounded-lg text-xs font-medium transition-all ${
-            mode === "voice"
-              ? "bg-accent/20 text-accent border border-accent/40 font-semibold shadow-sm"
-              : "text-content-secondary hover:text-content-primary"
-          }`}
-        >
-          <Mic className="w-4 h-4" />
-          <span>Voice Audio Memo</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setMode("ocr")}
-          className={`flex items-center justify-center gap-2 py-3 rounded-lg text-xs font-medium transition-all ${
-            mode === "ocr"
-              ? "bg-accent/20 text-accent border border-accent/40 font-semibold shadow-sm"
-              : "text-content-secondary hover:text-content-primary"
-          }`}
-        >
-          <UploadCloud className="w-4 h-4" />
-          <span>Document / PDF OCR</span>
-        </button>
-      </div>
-
-      {/* Capture Form */}
-      <form
-        id="capture-intake-form"
-        onSubmit={handleSubmit}
-        className="p-6 rounded-2xl bg-surface border border-surface-border space-y-6 shadow-sm"
-      >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-content-secondary mb-1.5">
-              Matter or Topic Working Title
-            </label>
-            <input
-              type="text"
-              placeholder="e.g., Bombay High Court Injunction Precedent / BNS 64 Defense"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-lg bg-surface-elevated border border-surface-border text-xs text-content-primary focus:outline-none focus:border-accent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-content-secondary mb-1.5">
-              Practice Area
-            </label>
-            <select
-              value={practiceArea}
-              onChange={(e) => setPracticeArea(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-lg bg-surface-elevated border border-surface-border text-xs text-content-primary focus:outline-none focus:border-accent"
+            <span
+              className={cn(
+                "flex h-7 w-7 items-center justify-center rounded-full border",
+                step >= index + 1 ? "border-accent/40 bg-accent/10" : "border-surface-border",
+              )}
             >
-              <option value="Constitutional Law & Fundamental Rights">Constitutional Law & Fundamental Rights</option>
-              <option value="Criminal Law & BNS/IPC">Criminal Law & BNS/IPC</option>
-              <option value="Civil Procedure (CPC)">Civil Procedure (CPC)</option>
-              <option value="Indian Contract Act & Commercial">Indian Contract Act & Commercial</option>
-              <option value="Corporate Insolvency & IBC">Corporate Insolvency & IBC</option>
-              <option value="SEBI & Securities Law">SEBI & Securities Law</option>
-              <option value="Transfer of Property & Real Estate">Transfer of Property & Real Estate</option>
-              <option value="Family Law & Personal Law">Family Law & Personal Law</option>
-              <option value="Commercial Litigation & Civil">Commercial Litigation & Civil</option>
-              <option value="Arbitration & ADR">Arbitration & ADR</option>
-            </select>
+              {index + 1}
+            </span>
+            {label}
+            {index < 2 && <span className="mx-2 text-surface-border">—</span>}
           </div>
-        </div>
-
-        {/* Dynamic Mode Inputs */}
-        {mode === "text" && (
-          <div className="space-y-2">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <label className="text-xs font-medium text-content-secondary">
-                Raw Attorney Notes (Indian case context — PII will be sanitized automatically in Stage 3)
-              </label>
-              <div className="flex items-center gap-1 text-[11px] text-content-muted">
-                <span>Active Template:</span>
-                <span className="font-semibold text-accent truncate max-w-[220px]">{title}</span>
-              </div>
-            </div>
-
-            <textarea
-              rows={9}
-              value={textContent}
-              onChange={(e) => setTextContent(e.target.value)}
-              className="w-full p-4 rounded-xl bg-surface-elevated border border-surface-border text-xs text-content-primary focus:outline-none focus:border-accent leading-relaxed font-mono"
-            />
-          </div>
-        )}
-
-        {mode === "voice" && (
-          <div className="space-y-4 p-6 rounded-xl bg-surface-elevated border border-surface-border text-center">
-            <div className="w-16 h-16 rounded-full mx-auto flex items-center justify-center border transition-all shadow-md bg-accent/15 border-accent/30 text-accent">
-              <Mic className="w-7 h-7" />
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-content-primary">Voice Dictation & Audio Memo</h3>
-              <p className="text-xs text-content-secondary max-w-sm mx-auto mt-1">
-                Audio is transcribed via on-device faster-whisper. Record live or load the pre-recorded Bombay HC briefing.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-              {!isRecording ? (
-                <button
-                  type="button"
-                  onClick={startRecording}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-status-danger text-white text-xs font-semibold hover:bg-status-danger/90 transition-all shadow-sm"
-                >
-                  <Play className="w-4 h-4 fill-white" />
-                  <span>Record Live Microphone</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={stopRecording}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-accent text-background text-xs font-semibold animate-pulse transition-all"
-                >
-                  <StopCircle className="w-4 h-4" />
-                  <span>Stop Recording ({recordingSeconds}s)</span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={handleLoadDemoVoice}
-                disabled={demoLoading}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-surface border border-accent/40 text-accent text-xs font-semibold hover:bg-accent/10 transition-all shadow-sm"
-              >
-                {demoLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Volume2 className="w-3.5 h-3.5" />}
-                <span>Attach Pre-Recorded Legal Memo</span>
-              </button>
-            </div>
-
-            {/* Audio Preview & Confirmation */}
-            {audioPreviewUrl && (
-              <div className="p-4 rounded-xl bg-surface border border-accent/30 max-w-md mx-auto space-y-2 text-left">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-accent flex items-center gap-1.5">
-                    <Volume2 className="w-4 h-4" />
-                    <span>Attached Audio Stream</span>
-                  </span>
-                  <span className="text-[10px] font-mono text-content-muted">
-                    {file?.name || "voice_memo.webm"} ({audioBlob ? `${(audioBlob.size / 1024).toFixed(1)} KB` : ""})
-                  </span>
-                </div>
-                <audio controls src={audioPreviewUrl} className="w-full h-8 rounded" />
-                <div className="text-[11px] text-status-success font-medium flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Ready for faster-whisper transcription & PII sanitization.</span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {mode === "ocr" && (
-          <div className="p-8 rounded-xl bg-surface-elevated border-2 border-dashed border-surface-border hover:border-accent/50 transition-colors text-center space-y-4">
-            <div className="w-12 h-12 rounded-full bg-accent/10 text-accent mx-auto flex items-center justify-center border border-accent/20">
-              <UploadCloud className="w-6 h-6" />
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold text-content-primary">Upload Contract, Brief, or Hindi Case Sheet</h4>
-              <p className="text-xs text-content-secondary mt-1">
-                Supports English & Devanagari Hindi (हिन्दी) legal documents, agreements, and pleadings.
-              </p>
-            </div>
-
-            {/* OCR Language Selector */}
-            <div className="flex items-center justify-center gap-3 text-xs pt-1">
-              <span className="text-content-secondary text-[11px] font-medium">OCR Recognition Script:</span>
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value as "eng" | "hin")}
-                className="px-3 py-1.5 rounded-lg bg-surface border border-surface-border text-xs text-accent font-semibold focus:outline-none focus:border-accent"
-              >
-                <option value="eng">English (Default)</option>
-                <option value="hin">हिन्दी / Hindi Devanagari (Indian Court Sheets)</option>
-              </select>
-            </div>
-
-            <div className="flex flex-col items-center justify-center gap-3">
-              <input
-                type="file"
-                accept=".pdf,.png,.jpg,.jpeg"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-                className="text-xs text-content-secondary file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-accent/20 file:text-accent hover:file:bg-accent/30 cursor-pointer"
-              />
-
-              {/* File Selected Badge */}
-              {file && (
-                <div className="p-3 rounded-lg bg-surface border border-accent/30 flex items-center justify-between gap-3 text-xs max-w-sm w-full">
-                  <div className="flex items-center gap-2 text-content-primary truncate">
-                    <FileCheck2 className="w-4 h-4 text-status-success shrink-0" />
-                    <span className="font-mono text-[11px] font-semibold truncate">{file.name}</span>
-                    <span className="text-[10px] text-content-muted shrink-0">({(file.size / 1024).toFixed(1)} KB)</span>
+        ))}
+      </div>
+      <form onSubmit={form.handleSubmit(submit)}>
+        <Card className="overflow-hidden">
+          <div className="p-5 sm:p-7">
+            {step === 1 ? (
+              <div className="space-y-6">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="capture-title" className="mb-2 block text-sm font-medium">
+                      Research or matter title
+                    </label>
+                    <Input
+                      id="capture-title"
+                      placeholder="Article 21 privacy research…"
+                      {...form.register("title")}
+                    />
+                    {form.formState.errors.title && (
+                      <p role="alert" className="mt-2 text-xs text-status-danger">
+                        {form.formState.errors.title.message}
+                      </p>
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setFile(null)}
-                    className="text-[10px] text-status-danger hover:underline shrink-0"
-                  >
-                    Clear
-                  </button>
+                  <div>
+                    <label htmlFor="capture-area" className="mb-2 block text-sm font-medium">
+                      Practice area
+                    </label>
+                    <select
+                      id="capture-area"
+                      {...form.register("practiceArea")}
+                      className="min-h-11 w-full rounded-xl border border-surface-border bg-surface-elevated px-3 text-sm"
+                    >
+                      {Array.from(
+                        new Set([
+                          "Constitutional Law & Fundamental Rights",
+                          ...INDIAN_LEGAL_TEMPLATES.map((template) => template.practice_area),
+                        ]),
+                      ).map((area) => (
+                        <option key={area}>{area}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-              )}
-            </div>
-
-            {/* Quick Demo Sheet & Contract Loaders */}
-            <div className="pt-3 border-t border-surface-border/50 flex flex-wrap items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={handleLoadDemoPdf}
-                disabled={demoLoading}
-                className="px-3 py-1.5 rounded-lg bg-surface border border-accent/30 text-xs text-accent hover:bg-accent/10 flex items-center gap-1.5 font-semibold transition-all shadow-sm"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Load Sample Commercial Contract PDF</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const hindiTpl = INDIAN_LEGAL_TEMPLATES.find((t) => t.language === "hin") || INDIAN_LEGAL_TEMPLATES[0];
-                  handleSelectTemplate(hindiTpl);
-                  alert("Hindi Legal Test Sheet loaded into OCR buffer! Click 'Launch Pipeline' below.");
-                }}
-                className="px-3 py-1.5 rounded-lg bg-surface border border-surface-border text-xs text-status-success hover:bg-status-success/10 flex items-center gap-1.5 font-semibold transition-all"
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                <span>Pre-Loaded Hindi Devanagari Sheet</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Submit Action */}
-        <div className="flex items-center justify-between pt-4 border-t border-surface-border">
-          <div className="text-[11px] text-content-muted flex items-center gap-1.5">
-            <Shield className="w-3.5 h-3.5 text-accent" />
-            <span>Encrypted on-device intake • Privilege-protected</span>
-          </div>
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-accent hover:bg-accent-hover text-background font-semibold text-xs transition-all shadow-gold disabled:opacity-50 active:scale-95"
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Launching 8-Stage Pipeline...</span>
-              </>
+                <Tabs.Root
+                  value={mode}
+                  onValueChange={(value) => {
+                    if (recording) {
+                      toast.info("Stop your recording before switching modes");
+                      return;
+                    }
+                    setMode(value as Mode);
+                  }}
+                >
+                  <Tabs.List
+                    aria-label="Capture input mode"
+                    className="mb-5 grid grid-cols-3 gap-1 rounded-xl border border-surface-border bg-surface-elevated p-1"
+                  >
+                    {[
+                      { id: "text", label: "Typed notes", icon: FileText },
+                      { id: "voice", label: "Voice memo", icon: Mic },
+                      { id: "ocr", label: "Document", icon: UploadCloud },
+                    ].map((tab) => (
+                      <Tabs.Trigger
+                        key={tab.id}
+                        value={tab.id}
+                        className="flex items-center justify-center gap-2 rounded-lg py-3 text-xs text-content-secondary data-[state=active]:bg-surface data-[state=active]:text-accent"
+                      >
+                        <tab.icon className="h-4 w-4" />
+                        {tab.label}
+                      </Tabs.Trigger>
+                    ))}
+                  </Tabs.List>
+                  <Tabs.Content value="text">
+                    <label htmlFor="capture-text" className="mb-2 block text-sm font-medium">
+                      Working notes
+                    </label>
+                    <textarea
+                      id="capture-text"
+                      rows={12}
+                      {...form.register("text")}
+                      placeholder="Record the legal issue, constitutional provision, court reasoning, and transferable insight…"
+                      className="w-full rounded-xl border border-surface-border bg-surface-elevated p-4 text-sm leading-loose"
+                    />
+                    <div className="mt-2 flex justify-between text-xs text-content-muted">
+                      <span>Draft saved for this browser session</span>
+                      <span>{values.text.length.toLocaleString()} characters</span>
+                    </div>
+                  </Tabs.Content>
+                  <Tabs.Content value="voice">
+                    <div className="rounded-xl border border-surface-border bg-surface-elevated/50 p-7 text-center">
+                      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-accent/10 text-accent">
+                        <Mic className={cn("h-7 w-7", recording && "animate-pulse")} />
+                      </div>
+                      <h3 className="text-base font-medium">Dictate your working insight</h3>
+                      <p className="mx-auto mt-2 max-w-md text-sm text-content-secondary">
+                        Record in the browser or attach audio for transcription.
+                      </p>
+                      <div className="mt-5 flex flex-wrap justify-center gap-3">
+                        <Button
+                          type="button"
+                          onClick={recording ? () => recorder.current?.stop() : startRecording}
+                        >
+                          {recording ? (
+                            <Square className="h-4 w-4" />
+                          ) : (
+                            <Play className="h-4 w-4" />
+                          )}
+                          {recording ? `Stop · ${seconds}s` : "Start recording"}
+                        </Button>
+                        <label className="inline-flex cursor-pointer items-center rounded-xl border border-surface-border px-4 py-2.5 text-sm">
+                          Upload audio
+                          <input
+                            type="file"
+                            accept="audio/*"
+                            className="sr-only"
+                            onChange={(event) => {
+                              const candidate = event.target.files?.[0];
+                              if (candidate && candidate.size <= 25 * 1024 * 1024)
+                                setVoice(candidate);
+                              else toast.error("Audio must be smaller than 25 MB");
+                            }}
+                          />
+                        </label>
+                      </div>
+                      {preview && (
+                        <div className="mx-auto mt-6 max-w-lg rounded-xl border border-surface-border bg-surface p-4">
+                          <p className="mb-3 text-left text-xs text-accent">{voice?.name}</p>
+                          <audio controls src={preview} className="w-full" />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="small"
+                            onClick={() => setVoice(null)}
+                          >
+                            Remove audio
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </Tabs.Content>
+                  <Tabs.Content value="ocr">
+                    <div
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        setDragging(true);
+                      }}
+                      onDragLeave={() => setDragging(false)}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        setDragging(false);
+                        chooseFile(event.dataTransfer.files[0]);
+                      }}
+                      className={cn(
+                        "rounded-xl border-2 border-dashed p-8 text-center",
+                        dragging
+                          ? "border-accent bg-accent/5"
+                          : "border-surface-border bg-surface-elevated/40",
+                      )}
+                    >
+                      <UploadCloud className="mx-auto mb-4 h-8 w-8 text-accent" />
+                      <h3 className="text-base font-medium">Drop your document here</h3>
+                      <p className="mt-2 text-xs text-content-muted">
+                        PDF, PNG, or JPG · up to 25 MB · English & Hindi
+                      </p>
+                      <input
+                        ref={inputRef}
+                        aria-label="Upload document"
+                        type="file"
+                        accept=".pdf,.png,.jpg,.jpeg"
+                        className="sr-only"
+                        onChange={(event) => chooseFile(event.target.files?.[0])}
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="mt-5"
+                        onClick={() => inputRef.current?.click()}
+                      >
+                        Choose a document
+                      </Button>
+                      {file && (
+                        <div className="mx-auto mt-5 flex max-w-md items-center gap-3 rounded-xl border border-accent/25 bg-surface p-3 text-left">
+                          <CheckCircle2 className="h-4 w-4 text-status-success" />
+                          <span className="min-w-0 flex-1 truncate text-xs">
+                            {file.name} · {(file.size / 1024).toFixed(0)} KB
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Remove document"
+                            onClick={() => setFile(null)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    <label
+                      htmlFor="capture-language"
+                      className="mt-4 flex items-center gap-3 text-xs text-content-secondary"
+                    >
+                      Recognition language
+                      <select
+                        id="capture-language"
+                        {...form.register("language")}
+                        className="rounded-lg border border-surface-border bg-surface-elevated px-3 py-2"
+                      >
+                        <option value="eng">English</option>
+                        <option value="hin">हिन्दी</option>
+                      </select>
+                    </label>
+                  </Tabs.Content>
+                </Tabs.Root>
+              </div>
             ) : (
-              <>
-                <span>Launch Pipeline</span>
-                <ArrowRight className="w-4 h-4" />
-              </>
+              <div className="space-y-5">
+                <Badge>
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Ready for the review pipeline
+                </Badge>
+                <h2 className="text-xl font-semibold">{values.title}</h2>
+                <p className="text-sm text-content-secondary">
+                  {values.practiceArea} · {mode.toUpperCase()} capture
+                </p>
+                <div className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded-xl border border-surface-border bg-surface-elevated p-5 text-sm leading-relaxed">
+                  {mode === "text" ? values.text : mode === "voice" ? voice?.name : file?.name}
+                </div>
+                <p className="text-sm leading-relaxed text-content-secondary">
+                  The pipeline will process your input, remove detected identifiers, abstract a
+                  reusable insight, and request partner review before publication.
+                </p>
+              </div>
             )}
-          </button>
-        </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-surface-border bg-surface-subtle px-5 py-4 sm:px-7">
+            <span className="text-xs text-content-muted">
+              {step === 1
+                ? "Private intake → sanitized insight → partner review"
+                : "Every decision is traceable in the audit trail"}
+            </span>
+            {step === 1 ? (
+              <Button
+                type="button"
+                disabled={!ready}
+                onClick={async () => {
+                  if (await form.trigger()) setStep(2);
+                }}
+              >
+                Review capture <ArrowRight className="h-4 w-4" />
+              </Button>
+            ) : (
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={submitting}
+                  onClick={() => setStep(1)}
+                >
+                  Back
+                </Button>
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ArrowRight className="h-4 w-4" />
+                  )}
+                  {submitting ? "Submitting capture…" : "Launch pipeline"}
+                </Button>
+              </div>
+            )}
+          </div>
+        </Card>
       </form>
-    </div>
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-surface-border p-4">
+        <span className="mr-auto text-xs text-content-muted">Evaluator demo attachments</span>
+        <Button variant="ghost" size="small" disabled={demoLoading} onClick={() => demo("voice")}>
+          <Volume2 className="h-4 w-4" />
+          Load voice demo
+        </Button>
+        <Button variant="ghost" size="small" disabled={demoLoading} onClick={() => demo("ocr")}>
+          <FileText className="h-4 w-4" />
+          Load contract PDF
+        </Button>
+      </div>
+      <Dialog
+        open={library}
+        onOpenChange={setLibrary}
+        title="Indian legal case templates"
+        description="Start with a prepared scenario and adapt it to your research."
+        className="max-w-4xl"
+      >
+        <Input
+          aria-label="Search case templates"
+          placeholder="Constitutional, Article 21, writs…"
+          value={filter}
+          onChange={(event) => setFilter(event.target.value)}
+        />
+        <div className="mt-4 grid max-h-[55dvh] gap-3 overflow-y-auto sm:grid-cols-2">
+          {INDIAN_LEGAL_TEMPLATES.filter((template) =>
+            `${template.title} ${template.practice_area} ${template.summary}`
+              .toLowerCase()
+              .includes(filter.toLowerCase()),
+          )
+            .sort(
+              (a, b) =>
+                Number(b.practice_area.includes("Constitution")) -
+                Number(a.practice_area.includes("Constitution")),
+            )
+            .map((template) => (
+              <button
+                key={template.id}
+                onClick={() => loadTemplate(template)}
+                className="rounded-xl border border-surface-border p-4 text-left hover:border-accent/40"
+              >
+                <Badge>{template.badge}</Badge>
+                <h3 className="mt-3 text-sm font-medium">{template.title}</h3>
+                <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-content-muted">
+                  {template.summary}
+                </p>
+              </button>
+            ))}
+        </div>
+      </Dialog>
+    </Reveal>
   );
 }
-
 export default function CapturePage() {
   return (
-    <Suspense fallback={<div className="p-12 text-center text-xs text-content-muted">Loading Capture Intake...</div>}>
+    <Suspense fallback={<LoadingState />}>
       <CaptureContent />
     </Suspense>
   );

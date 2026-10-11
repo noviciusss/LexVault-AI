@@ -1,275 +1,187 @@
 "use client";
-
-import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+import { useQuery } from "@tanstack/react-query";
 import {
+  Landmark,
+  ArrowRight,
   FileText,
-  Mic,
-  UploadCloud,
   CheckCircle2,
   Clock,
   ShieldCheck,
-  ArrowRight,
-  TrendingUp,
-  AlertCircle,
-  Database,
-  Sparkles,
+  BookOpen,
+  Mic,
+  UploadCloud,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAppStore } from "@/store/useAppStore";
+import { Card, Badge, ErrorState, PageHeader, Skeleton } from "@/components/ui/primitives";
+import { Reveal } from "@/components/ui/motion";
+import type { DashboardStats, KnowledgeItem } from "@/types/domain";
+import { errorMessage } from "@/lib/utils";
+const KnowledgeChart = dynamic(() => import("@/components/dashboard/KnowledgeChart"), {
+  ssr: false,
+  loading: () => <Skeleton className="h-60" />,
+});
 
 export default function DashboardPage() {
-  const { currentUser, setPendingCount } = useAppStore();
-  const [stats, setStats] = useState({
-    total_captured: 7,
-    total_published: 5,
-    pending_approval: 2,
-    avg_time_to_publish: "4.2 min",
-    pii_entities_sanitized: 18,
+  const user = useAppStore((state) => state.currentUser);
+  const stats = useQuery<DashboardStats>({
+    queryKey: ["stats", user.firm_id],
+    queryFn: () => api.admin.getStats(),
   });
-  const [recentItems, setRecentItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadDashboard() {
-      try {
-        const [statsData, itemsData] = await Promise.all([
-          api.admin.getStats().catch(() => null),
-          api.knowledge.list().catch(() => []),
-        ]);
-        if (statsData) {
-          setStats(statsData);
-          if (statsData.pending_approval !== undefined) {
-            setPendingCount(statsData.pending_approval);
-          }
-        }
-        if (itemsData && itemsData.length > 0) {
-          setRecentItems(itemsData.slice(0, 6));
-        }
-      } catch (err) {
-        console.error("Dashboard error:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadDashboard();
-  }, [setPendingCount]);
-
+  const items = useQuery<KnowledgeItem[]>({
+    queryKey: ["knowledge", user.firm_id],
+    queryFn: () => api.knowledge.list(),
+  });
+  const metrics = [
+    { label: "Captured insights", value: stats.data?.total_captured, icon: FileText },
+    { label: "Published knowledge", value: stats.data?.total_published, icon: CheckCircle2 },
+    { label: "Awaiting review", value: stats.data?.pending_approval, icon: Clock },
+    {
+      label: "Identifiers sanitized",
+      value: stats.data?.pii_entities_sanitized,
+      icon: ShieldCheck,
+    },
+  ];
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
-      {/* Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl bg-gradient-to-r from-surface-elevated via-surface to-surface-elevated border border-surface-border">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-accent uppercase tracking-wider mb-1">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>{currentUser.firm_name || (currentUser.firm_id === 1 ? "Chandra & Rao Associates (Mumbai)" : "NyayaVault India Platform (New Delhi)")} — Institutional Vault</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-content-primary">
-            Welcome back, {currentUser.name}
-          </h1>
-          <p className="text-xs text-content-secondary mt-1">
-            {currentUser.role === "admin"
-              ? "You have reviewer authorization. 2 items are currently pending your approval."
-              : "Capture your matters, review auto-sanitization, and search firm-wide legal precedents."}
+    <Reveal className="mx-auto max-w-7xl space-y-7">
+      <PageHeader
+        eyebrow={user.firm_name || "Firm workspace"}
+        title="Your firm’s knowledge, connected."
+        description="Continue constitutional research, capture working insights, and track their path to reviewed institutional knowledge."
+      />
+      <Card className="relative overflow-hidden border-accent/25 p-6 sm:p-8">
+        <div className="absolute right-8 top-8 hidden text-accent/10 sm:block">
+          <Landmark className="h-32 w-32" strokeWidth={0.75} />
+        </div>
+        <div className="relative max-w-2xl">
+          <Badge>
+            <Landmark className="h-3.5 w-3.5" />
+            Constitution of India
+          </Badge>
+          <h2 className="mt-4 font-serif text-2xl font-semibold sm:text-3xl">
+            Begin with the constitutional foundation.
+          </h2>
+          <p className="mt-3 text-sm leading-relaxed text-content-secondary">
+            Read articles in English or Hindi, explore landmark cases, compare provisions, and
+            research with source-linked references.
           </p>
-        </div>
-
-        <div className="flex items-center gap-3">
           <Link
-            href="/capture"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-background font-semibold text-xs transition-all shadow-gold active:scale-95"
+            href="/constitution"
+            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-medium text-background hover:bg-accent-hover"
           >
-            <Mic className="w-4 h-4" />
-            <span>Capture New Insight</span>
+            Open research workspace <ArrowRight className="h-4 w-4" />
           </Link>
-          {currentUser.role === "admin" && (
-            <Link
-              href="/approvals"
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-status-warning/15 hover:bg-status-warning/25 text-status-warning border border-status-warning/30 font-semibold text-xs transition-all"
-            >
-              <Clock className="w-4 h-4" />
-              <span>Review Approvals ({stats.pending_approval})</span>
+        </div>
+      </Card>
+      {stats.isError && (
+        <ErrorState message={errorMessage(stats.error)} retry={() => stats.refetch()} />
+      )}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {metrics.map((metric) => (
+          <Card key={metric.label} className="p-5">
+            <div className="flex items-center justify-between gap-2 text-xs text-content-secondary">
+              {metric.label}
+              <metric.icon className="h-4 w-4 shrink-0 text-accent" />
+            </div>
+            {stats.isPending ? (
+              <Skeleton className="mt-4 h-9 w-20" />
+            ) : (
+              <div className="mt-3 text-3xl font-semibold tabular-nums">{metric.value ?? "—"}</div>
+            )}
+            <p className="mt-2 text-[11px] text-content-muted">Current firm workspace</p>
+          </Card>
+        ))}
+      </div>
+      <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
+        <Card className="p-5 sm:p-6">
+          <h2 className="text-sm font-semibold">Knowledge pipeline snapshot</h2>
+          <p className="mt-1 text-xs text-content-muted">
+            Current captured, published, and pending totals
+          </p>
+          <KnowledgeChart stats={stats.data} />
+          <div className="flex items-center justify-between border-t border-surface-border pt-4 text-xs text-content-secondary">
+            <span>Average review-to-publish time</span>
+            <span className="font-medium text-accent">
+              {stats.data?.avg_time_to_publish || "—"}
+            </span>
+          </div>
+        </Card>
+        <Card className="p-5 sm:p-6">
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Recently published</h2>
+            <Link href="/knowledge-hub" className="text-xs text-accent">
+              View all ↗
             </Link>
-          )}
-        </div>
-      </div>
-
-      {/* Metrics Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="p-5 rounded-xl bg-surface border border-surface-border space-y-2">
-          <div className="flex items-center justify-between text-xs text-content-muted">
-            <span>Captured Matters</span>
-            <FileText className="w-4 h-4 text-accent" />
           </div>
-          <div className="text-2xl sm:text-3xl font-bold text-content-primary">
-            {stats.total_captured}
-          </div>
-          <div className="text-[11px] text-content-secondary flex items-center gap-1">
-            <TrendingUp className="w-3 h-3 text-status-success" />
-            <span>Across 4 practice groups</span>
-          </div>
-        </div>
-
-        <div className="p-5 rounded-xl bg-surface border border-surface-border space-y-2">
-          <div className="flex items-center justify-between text-xs text-content-muted">
-            <span>Published Insights</span>
-            <CheckCircle2 className="w-4 h-4 text-status-success" />
-          </div>
-          <div className="text-2xl sm:text-3xl font-bold text-status-success">
-            {stats.total_published}
-          </div>
-          <div className="text-[11px] text-content-secondary">
-            <span>Indexed in Qdrant & Neo4j</span>
-          </div>
-        </div>
-
-        <div className="p-5 rounded-xl bg-surface border border-surface-border space-y-2">
-          <div className="flex items-center justify-between text-xs text-content-muted">
-            <span>Pending Gatekeeper</span>
-            <Clock className="w-4 h-4 text-status-warning" />
-          </div>
-          <div className="text-2xl sm:text-3xl font-bold text-status-warning">
-            {stats.pending_approval}
-          </div>
-          <div className="text-[11px] text-content-secondary">
-            <span>Awaiting senior partner review</span>
-          </div>
-        </div>
-
-        <div className="p-5 rounded-xl bg-surface border border-surface-border space-y-2">
-          <div className="flex items-center justify-between text-xs text-content-muted">
-            <span>PII Redacted</span>
-            <ShieldCheck className="w-4 h-4 text-accent" />
-          </div>
-          <div className="text-2xl sm:text-3xl font-bold text-content-primary">
-            {stats.pii_entities_sanitized}
-          </div>
-          <div className="text-[11px] text-content-secondary">
-            <span>Client entities protected</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Intake Modes */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-content-primary uppercase tracking-wider text-xs text-accent">
-          Instant Knowledge Capture Modes
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Link
-            href="/capture?mode=text"
-            className="p-5 rounded-xl bg-surface border border-surface-border hover:border-accent/40 transition-all flex items-start gap-4 group"
-          >
-            <div className="p-3 rounded-lg bg-accent/10 text-accent border border-accent/20 group-hover:scale-105 transition-transform">
-              <FileText className="w-5 h-5" />
+          {items.isPending ? (
+            <div className="space-y-3">
+              <Skeleton className="h-16" />
+              <Skeleton className="h-16" />
             </div>
-            <div>
-              <h4 className="text-sm font-semibold text-content-primary group-hover:text-accent transition-colors">
-                Dictated Attorney Notes
-              </h4>
-              <p className="text-xs text-content-secondary mt-1">
-                Paste raw meeting thoughts or settlement negotiations for local AI structuring.
-              </p>
-            </div>
-          </Link>
-
-          <Link
-            href="/capture?mode=voice"
-            className="p-5 rounded-xl bg-surface border border-surface-border hover:border-accent/40 transition-all flex items-start gap-4 group"
-          >
-            <div className="p-3 rounded-lg bg-status-warning/10 text-status-warning border border-status-warning/20 group-hover:scale-105 transition-transform">
-              <Mic className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold text-content-primary group-hover:text-status-warning transition-colors">
-                Voice Audio Memo
-              </h4>
-              <p className="text-xs text-content-secondary mt-1">
-                Record on your browser. Transcribed with local faster-whisper on-device.
-              </p>
-            </div>
-          </Link>
-
-          <Link
-            href="/capture?mode=ocr"
-            className="p-5 rounded-xl bg-surface border border-surface-border hover:border-accent/40 transition-all flex items-start gap-4 group"
-          >
-            <div className="p-3 rounded-lg bg-status-info/10 text-status-info border border-status-info/20 group-hover:scale-105 transition-transform">
-              <UploadCloud className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold text-content-primary group-hover:text-status-info transition-colors">
-                Document / Contract OCR
-              </h4>
-              <p className="text-xs text-content-secondary mt-1">
-                Upload redacted filings or contract scan PDFs for automated clause ingestion.
-              </p>
-            </div>
-          </Link>
-        </div>
-      </div>
-
-      {/* Published Precedents Table */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-content-primary">Recently Published Institutional Insights</h3>
-          <Link href="/knowledge-hub" className="text-xs text-accent hover:underline flex items-center gap-1">
-            <span>Explore Knowledge Hub</span>
-            <ArrowRight className="w-3 h-3" />
-          </Link>
-        </div>
-
-        <div className="rounded-xl bg-surface border border-surface-border overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-surface-elevated text-content-muted uppercase text-[10px] tracking-wider border-b border-surface-border">
-                <tr>
-                  <th className="py-3 px-4">Title & Matter</th>
-                  <th className="py-3 px-4">Practice Area</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Stage</th>
-                  <th className="py-3 px-4 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-surface-border">
-                {recentItems.map((item) => (
-                  <tr key={item.id} className="hover:bg-surface-elevated/50 transition-colors">
-                    <td className="py-3.5 px-4 font-medium text-content-primary max-w-xs truncate">
+          ) : items.isError ? (
+            <ErrorState message={errorMessage(items.error)} retry={() => items.refetch()} />
+          ) : !items.data?.length ? (
+            <p className="py-10 text-center text-sm text-content-muted">
+              Approved insights will appear here once published.
+            </p>
+          ) : (
+            <div className="divide-y divide-surface-border">
+              {items.data.slice(0, 5).map((item) => (
+                <Link
+                  key={item.id}
+                  href={`/knowledge-hub?id=${item.id}`}
+                  className="group flex items-center gap-3 py-4"
+                >
+                  <BookOpen className="h-4 w-4 shrink-0 text-accent" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium group-hover:text-accent">
                       {item.title}
-                    </td>
-                    <td className="py-3.5 px-4 text-content-secondary">
-                      {item.practice_area}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-status-success/15 text-status-success border border-status-success/25">
-                        <CheckCircle2 className="w-3 h-3" /> Published
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-content-muted">
-                      Stage 6 (Vector+Graph)
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <Link
-                        href={`/knowledge-hub?id=${item.id}`}
-                        className="text-accent hover:underline text-xs"
-                      >
-                        Inspect Precedent
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-                {recentItems.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="py-6 text-center text-content-muted">
-                      No items loaded yet. Seed data is populating...
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                    </p>
+                    <p className="mt-1 text-xs text-content-muted">{item.practice_area}</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-content-muted" />
+                </Link>
+              ))}
+            </div>
+          )}
+        </Card>
       </div>
-    </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        {[
+          {
+            mode: "text",
+            title: "Capture a working note",
+            icon: FileText,
+            description: "Turn matter insights into reusable knowledge.",
+          },
+          {
+            mode: "voice",
+            title: "Record a voice memo",
+            icon: Mic,
+            description: "Capture your reasoning while it is fresh.",
+          },
+          {
+            mode: "ocr",
+            title: "Extract document text",
+            icon: UploadCloud,
+            description: "Process legal documents through the review pipeline.",
+          },
+        ].map((item) => (
+          <Link
+            key={item.mode}
+            href={`/capture?mode=${item.mode}`}
+            className="flex gap-4 rounded-2xl border border-surface-border bg-surface p-5 transition-colors hover:border-accent/40"
+          >
+            <item.icon className="mt-1 h-5 w-5 shrink-0 text-accent" />
+            <div>
+              <h3 className="text-sm font-medium">{item.title}</h3>
+              <p className="mt-2 text-xs leading-relaxed text-content-muted">{item.description}</p>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </Reveal>
   );
 }

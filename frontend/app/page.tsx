@@ -1,237 +1,189 @@
 "use client";
-
-import React, { useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+import { useState } from "react";
 import {
-  Shield,
-  Lock,
-  Zap,
   ArrowRight,
-  CheckCircle2,
-  Database,
-  Cpu,
-  Share2,
-  FileCheck,
+  Landmark,
+  Languages,
+  BookOpen,
+  ShieldCheck,
   Scale,
-  Users,
-  EyeOff,
-  Sparkles,
+  GitFork,
 } from "lucide-react";
-import PipelineDiagram from "@/components/pipeline/PipelineDiagram";
-import Logo from "@/components/Logo";
-
+import { Reveal } from "@/components/ui/motion";
+import { Badge, Card, Skeleton } from "@/components/ui/primitives";
+const PipelineDiagram = dynamic(() => import("@/components/pipeline/PipelineDiagram"), {
+  ssr: false,
+  loading: () => <Skeleton className="h-96" />,
+});
 export default function LandingPage() {
-  const [demoStage, setDemoStage] = useState(3);
-
-  const sampleStages = [
-    { stage: 1, name: "Raw Capture", status: "done" as const },
-    { stage: 2, name: "Local AI Processing", status: "done" as const },
-    { stage: 3, name: "PII Sanitization", status: "running" as const },
-    { stage: 4, name: "Strategy Abstraction", status: "pending" as const },
-    { stage: 5, name: "Lawyer Approval Gate", status: "pending" as const },
-    { stage: 6, name: "Vector & Graph DB", status: "pending" as const },
-    { stage: 7, name: "RAG Retrieval", status: "pending" as const },
-    { stage: 8, name: "Safe Response", status: "pending" as const },
+  const [stage, setStage] = useState(3);
+  const names = [
+    "Raw capture",
+    "Local processing",
+    "PII sanitization",
+    "Strategy abstraction",
+    "Partner review",
+    "Knowledge indexing",
+    "Source retrieval",
+    "Grounded response",
   ];
-
+  const stages = names.map((name, index) => ({
+    stage: index + 1,
+    name,
+    status:
+      index + 1 < stage
+        ? ("done" as const)
+        : index + 1 === stage
+          ? ("running" as const)
+          : ("pending" as const),
+  }));
   return (
-    <div className="max-w-6xl mx-auto space-y-20 py-6 pb-20">
-      {/* Slide 1: Hero */}
-      <section className="text-center space-y-6 pt-4">
-        <div className="flex justify-center mb-2">
-          <Logo size="lg" />
+    <div className="mx-auto max-w-6xl space-y-16 py-8 sm:py-14">
+      <Reveal className="grid items-center gap-10 lg:grid-cols-[1.1fr_1fr]">
+        <div>
+          <Badge>
+            <Landmark className="h-3.5 w-3.5" />
+            Built around the Constitution of India
+          </Badge>
+          <h1 className="mt-6 font-serif text-4xl font-semibold leading-[1.15] tracking-tight sm:text-5xl lg:text-6xl">
+            Clarity in the law.
+            <br />
+            <span className="text-accent">Confidence in the source.</span>
+          </h1>
+          <p className="mt-6 max-w-lg text-base leading-relaxed text-content-secondary">
+            A focused workspace for Indian constitutional research. Connect articles, doctrines, and
+            landmark case references with your firm’s reviewed institutional knowledge.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link
+              href="/constitution"
+              className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-background transition-colors hover:bg-accent-hover"
+            >
+              Explore the Constitution <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/dashboard"
+              className="rounded-xl border border-surface-border bg-surface px-5 py-3 text-sm font-medium hover:border-accent/40"
+            >
+              Open firm workspace
+            </Link>
+          </div>
+          <div className="mt-7 flex flex-wrap gap-5 text-xs text-content-muted">
+            <span className="flex items-center gap-2">
+              <Languages className="h-4 w-4 text-accent" />
+              English & हिन्दी
+            </span>
+            <span className="flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-accent" />
+              Source-linked research
+            </span>
+          </div>
         </div>
-
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-accent/30 text-accent text-xs font-semibold uppercase tracking-wider shadow-gold">
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>Institutional Legal AI Architecture</span>
-        </div>
-
-        <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-content-primary max-w-4xl mx-auto leading-tight">
-          Unlock decades of hidden legal expertise <span className="text-accent underline decoration-accent/40 underline-offset-8">without breaching privilege.</span>
-        </h1>
-
-        <p className="text-base sm:text-lg text-content-secondary max-w-2xl mx-auto leading-relaxed">
-          LexVault AI turns undocumented attorney notes, recordings, and case filings into a searchable, firm-wide institutional intelligence asset—sanitized by local AI and audited at every step.
-        </p>
-
-        <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-accent hover:bg-accent-hover text-background font-semibold text-sm transition-all shadow-gold hover:scale-105 active:scale-95"
+        <Card className="relative overflow-hidden p-6 sm:p-8">
+          <div className="mb-7 flex items-center justify-between">
+            <span className="text-xs uppercase tracking-[.18em] text-content-muted">
+              A constitutional foundation
+            </span>
+            <Landmark className="h-5 w-5 text-accent" />
+          </div>
+          <Badge>Article 21 · Life & personal liberty</Badge>
+          <blockquote className="my-7 font-serif text-2xl leading-relaxed">
+            “No person shall be deprived of his life or personal liberty except according to
+            procedure established by law.”
+          </blockquote>
+          <p
+            lang="hi"
+            className="border-t border-surface-border pt-5 text-sm leading-loose text-content-secondary"
           >
-            <span>Launch Live Prototype</span>
-            <ArrowRight className="w-4 h-4" />
-          </Link>
+            किसी व्यक्ति को उसके प्राण या दैहिक स्वतंत्रता से विधि द्वारा स्थापित प्रक्रिया के
+            अनुसार ही वंचित किया जाएगा, अन्यथा नहीं।
+          </p>
+          <div className="mt-6 flex flex-wrap gap-2">
+            {["Human dignity", "Privacy", "Substantive fairness"].map((theme) => (
+              <span
+                key={theme}
+                className="rounded-lg bg-surface-elevated px-3 py-2 text-xs text-content-secondary"
+              >
+                {theme}
+              </span>
+            ))}
+          </div>
           <Link
-            href="/capture"
-            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-surface-elevated hover:bg-surface border border-surface-border text-content-primary font-medium text-sm transition-all hover:border-accent/40"
+            href="/constitution?article=21"
+            className="mt-6 inline-flex items-center gap-2 text-sm text-accent"
           >
-            <span>Test Capture Intake</span>
+            Read Article 21 <ArrowRight className="h-4 w-4" />
           </Link>
-        </div>
-      </section>
-
-      {/* Slide 2: The Core Problem */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="p-6 rounded-2xl bg-surface border border-surface-border space-y-3">
-          <div className="w-10 h-10 rounded-xl bg-status-danger/10 text-status-danger flex items-center justify-center border border-status-danger/20">
-            <EyeOff className="w-5 h-5" />
-          </div>
-          <h3 className="text-base font-semibold text-content-primary">Unrecorded Senior Wisdom</h3>
-          <p className="text-xs text-content-secondary leading-relaxed">
-            Partners resolve intricate multi-million dollar regulatory hurdles, but billing pressures prevent formal documentation. When partners retire, their strategic playbooks vanish.
-          </p>
-        </div>
-
-        <div className="p-6 rounded-2xl bg-surface border border-surface-border space-y-3">
-          <div className="w-10 h-10 rounded-xl bg-status-warning/10 text-status-warning flex items-center justify-center border border-status-warning/20">
-            <Lock className="w-5 h-5" />
-          </div>
-          <h3 className="text-base font-semibold text-content-primary">The Privilege Deadlock</h3>
-          <p className="text-xs text-content-secondary leading-relaxed">
-            Attorneys cannot paste raw client facts into public AI models (ChatGPT) without risking ethical malpractice and attorney-client privilege forfeiture.
-          </p>
-        </div>
-
-        <div className="p-6 rounded-2xl bg-surface border border-surface-border space-y-3">
-          <div className="w-10 h-10 rounded-xl bg-accent/15 text-accent flex items-center justify-center border border-accent/30">
-            <Scale className="w-5 h-5" />
-          </div>
-          <h3 className="text-base font-semibold text-content-primary">Reinventing the Wheel</h3>
-          <p className="text-xs text-content-secondary leading-relaxed">
-            Firms waste hundreds of associate hours redrafting arguments and restructuring indemnity terms that another practice group already perfected 6 months earlier.
-          </p>
-        </div>
-      </section>
-
-      {/* Slide 3: The 8-Stage Solution Pipeline (Live Interactive Flow) */}
+        </Card>
+      </Reveal>
+      <Reveal className="grid gap-5 md:grid-cols-3">
+        {[
+          {
+            icon: Landmark,
+            title: "Research the Constitution",
+            description:
+              "Navigate constitutional parts, compare articles, and explore the doctrines and related cases behind each provision.",
+          },
+          {
+            icon: Languages,
+            title: "Read in your language",
+            description:
+              "Switch between English, Hindi, and bilingual reading with bookmarks that keep your research close.",
+          },
+          {
+            icon: ShieldCheck,
+            title: "Build trusted firm knowledge",
+            description:
+              "Capture legal insights, sanitize identifying information, and publish only after partner review.",
+          },
+        ].map((feature) => (
+          <Card key={feature.title} className="p-6">
+            <feature.icon className="mb-5 h-6 w-6 text-accent" />
+            <h2 className="text-base font-semibold">{feature.title}</h2>
+            <p className="mt-3 text-sm leading-relaxed text-content-secondary">
+              {feature.description}
+            </p>
+          </Card>
+        ))}
+      </Reveal>
       <section className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
-            <span className="text-xs uppercase font-bold text-accent tracking-wider">The Architectural Spine</span>
-            <h2 className="text-2xl sm:text-3xl font-bold text-content-primary tracking-tight mt-1">
-              The 8-Stage Guardrailed Knowledge Pipeline
+            <p className="text-xs font-semibold uppercase tracking-[.18em] text-accent">
+              From experience to institutional memory
+            </p>
+            <h2 className="mt-3 font-serif text-3xl font-semibold">
+              Every insight follows a visible path.
             </h2>
           </div>
-          <p className="text-xs text-content-secondary max-w-md">
-            Every screen in LexVault maps directly to these 8 stages. Traceability from raw client intake to guardrailed firm retrieval is 100% visible.
+          <p className="max-w-sm text-sm leading-relaxed text-content-secondary">
+            Eight traceable stages connect capture, privacy, review, and source-grounded retrieval.
+            Select a stage to explore the architecture.
           </p>
         </div>
-
-        {/* Render Interactive Pipeline */}
-        <PipelineDiagram stages={sampleStages} selectedStage={demoStage} onSelectStage={setDemoStage} />
-      </section>
-
-      {/* Slide 4: The 4 Capabilities */}
-      <section className="space-y-6">
-        <div className="text-center max-w-xl mx-auto space-y-2">
-          <span className="text-xs uppercase font-bold text-accent tracking-wider">Product Capabilities</span>
-          <h2 className="text-2xl sm:text-3xl font-bold text-content-primary tracking-tight">
-            Institutional Memory, Defended by Architecture
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <div className="p-6 rounded-2xl bg-surface border border-surface-border space-y-3 hover:border-accent/30 transition-all">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-accent/10 text-accent border border-accent/20">
-                <Cpu className="w-5 h-5" />
-              </div>
-              <h4 className="text-sm font-semibold text-content-primary">1. Personal Knowledge Vault</h4>
-            </div>
-            <p className="text-xs text-content-secondary leading-relaxed">
-              Capture rough voice memos, quick shorthand bullet points, or document scans. Local models structure the text without uploading raw client data to public clouds.
-            </p>
-          </div>
-
-          <div className="p-6 rounded-2xl bg-surface border border-surface-border space-y-3 hover:border-accent/30 transition-all">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-status-success/10 text-status-success border border-status-success/20">
-                <Shield className="w-5 h-5" />
-              </div>
-              <h4 className="text-sm font-semibold text-content-primary">2. Secure Knowledge Publishing</h4>
-            </div>
-            <p className="text-xs text-content-secondary leading-relaxed">
-              Microsoft Presidio strips PII (client names, case numbers, corporations). High-parameter models generalize facts into reusable legal principles, submitted to human partners for gatekeeping sign-off.
-            </p>
-          </div>
-
-          <div className="p-6 rounded-2xl bg-surface border border-surface-border space-y-3 hover:border-accent/30 transition-all">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-accent/10 text-accent border border-accent/20">
-                <Database className="w-5 h-5" />
-              </div>
-              <h4 className="text-sm font-semibold text-content-primary">3. Firm Intelligence Hub</h4>
-            </div>
-            <p className="text-xs text-content-secondary leading-relaxed">
-              Approved strategies are dual-indexed: dense semantic vectors in Qdrant and relational doctrine links in Neo4j (Practice Area, Concepts, Authors).
-            </p>
-          </div>
-
-          <div className="p-6 rounded-2xl bg-surface border border-surface-border space-y-3 hover:border-accent/30 transition-all">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-status-info/10 text-status-info border border-status-info/20">
-                <FileCheck className="w-5 h-5" />
-              </div>
-              <h4 className="text-sm font-semibold text-content-primary">4. Safe AI Assistant</h4>
-            </div>
-            <p className="text-xs text-content-secondary leading-relaxed">
-              Attorneys query the vault in natural language. Answers are strictly constrained to cite internal Knowledge Item IDs, with automatic refusal if firm precedent does not exist.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Slide 5: Tech Stack & Verification */}
-      <section className="p-8 rounded-2xl bg-surface border border-surface-border space-y-6">
-        <h3 className="text-lg font-semibold text-content-primary flex items-center gap-2">
-          <Database className="w-5 h-5 text-accent" />
-          <span>Real, Running Production-Grade Tech Stack</span>
-        </h3>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-          <div className="p-4 rounded-xl bg-surface-elevated border border-surface-border">
-            <div className="font-semibold text-content-primary">Vector DB</div>
-            <div className="text-accent font-mono mt-1">Qdrant (BGE-Small)</div>
-            <div className="text-[11px] text-content-muted mt-1">Cosine Semantic Index</div>
-          </div>
-          <div className="p-4 rounded-xl bg-surface-elevated border border-surface-border">
-            <div className="font-semibold text-content-primary">Knowledge Graph</div>
-            <div className="text-accent font-mono mt-1">Neo4j Cypher</div>
-            <div className="text-[11px] text-content-muted mt-1">Concepts & Relational Edges</div>
-          </div>
-          <div className="p-4 rounded-xl bg-surface-elevated border border-surface-border">
-            <div className="font-semibold text-content-primary">PII Redaction</div>
-            <div className="text-accent font-mono mt-1">Microsoft Presidio</div>
-            <div className="text-[11px] text-content-muted mt-1">Analyzer & Anonymizer</div>
-          </div>
-          <div className="p-4 rounded-xl bg-surface-elevated border border-surface-border">
-            <div className="font-semibold text-content-primary">Fast Inference</div>
-            <div className="text-accent font-mono mt-1">Groq Llama-3.3-70B</div>
-            <div className="text-[11px] text-content-muted mt-1">Ultra-Low Latency Legal AI</div>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Bottom */}
-      <section className="text-center p-10 rounded-2xl bg-gradient-to-b from-surface-elevated to-surface border border-accent/30 space-y-4">
-        <h2 className="text-2xl sm:text-3xl font-bold text-content-primary">
-          Ready to experience the 8-stage pipeline live?
-        </h2>
-        <p className="text-xs sm:text-sm text-content-secondary max-w-lg mx-auto">
-          Capture a mock case note, watch client names get redacted in real time, review it in the partner approvals queue, and query the assistant.
+        <PipelineDiagram stages={stages} selectedStage={stage} onSelectStage={setStage} />
+        <p className="text-xs text-content-muted">
+          Interactive architecture preview · live jobs run in the firm workspace.
         </p>
-        <div className="pt-2">
-          <Link
-            href="/capture"
-            className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-accent hover:bg-accent-hover text-background font-semibold text-sm transition-all shadow-gold"
-          >
-            <span>Start End-to-End Demo</span>
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
       </section>
+      <Card className="flex flex-col items-start justify-between gap-6 border-accent/25 p-8 sm:flex-row sm:items-center">
+        <div>
+          <h2 className="font-serif text-2xl font-semibold">
+            Start with a constitutional question.
+          </h2>
+          <p className="mt-2 text-sm text-content-secondary">
+            Equality, liberty, writ jurisdiction, or the basic structure—follow the article.
+          </p>
+        </div>
+        <Link
+          href="/constitution"
+          className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-medium text-background"
+        >
+          Begin research <ArrowRight className="h-4 w-4" />
+        </Link>
+      </Card>
     </div>
   );
 }

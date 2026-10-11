@@ -17,7 +17,8 @@ export const INDIAN_LEGAL_TEMPLATES: IndianLegalTemplate[] = [
     practice_area: "Criminal Law & BNS/IPC",
     language: "hin",
     badge: "BNS 64 / IPC 376",
-    summary: "Consent vs Deceitful Promise of Marriage defense in Sessions Court Thane with BSA 61 digital records.",
+    summary:
+      "Consent vs Deceitful Promise of Marriage defense in Sessions Court Thane with BSA 61 digital records.",
     content: `दांडिक विचारण परामर्श — धारा ६४ बीएनएस (पूर्ववर्ती धारा ३७६ भा.दं.वि.)
 सत्र न्यायालय: मुंबई नगर दीवानी एवं सत्र न्यायालय | वाद संख्या: २०२५-एससी-११८
 अभियुक्त: श्री निखिल सावंत
@@ -39,7 +40,8 @@ export const INDIAN_LEGAL_TEMPLATES: IndianLegalTemplate[] = [
     practice_area: "Corporate Insolvency & IBC",
     language: "eng",
     badge: "IBC Section 9",
-    summary: "Pre-existing dispute defense against operational creditor CIRP under the Mobilox Innovations doctrine.",
+    summary:
+      "Pre-existing dispute defense against operational creditor CIRP under the Mobilox Innovations doctrine.",
     content: `NCLT Corporate Insolvency Note — Section 9 IBC 2016
 Forum: National Company Law Tribunal (NCLT), Mumbai Bench IV
 Matter: Kalpataru Engineering Ltd v. Metalfab Industries India Pvt Ltd
@@ -55,11 +57,13 @@ Lead Counsel: Adv. Meera Rao, Chandra & Rao Associates, Mumbai.`,
   {
     id: "contract_sec27",
     category: "Commercial & Contracts",
-    title: "Section 27 Indian Contract Act — IT Employee Post-Termination Non-Compete Injunction Defense",
+    title:
+      "Section 27 Indian Contract Act — IT Employee Post-Termination Non-Compete Injunction Defense",
     practice_area: "Indian Contract Act & Commercial",
     language: "eng",
     badge: "Contract Act Sec 27",
-    summary: "Defense against ex-employer's post-employment 24-month non-compete restraint in software industry.",
+    summary:
+      "Defense against ex-employer's post-employment 24-month non-compete restraint in software industry.",
     content: `High Court Commercial Dispute Note — Post-Employment Restrictive Covenants
 Court: High Court of Judicature at Bombay (Commercial Division)
 Suit: HexaTech Solutions Ltd v. Siddharth Deshmukh & FinNext Technologies
@@ -80,7 +84,8 @@ Counsel: Adv. Rohit Kulkarni.`,
     practice_area: "Constitutional Law & Fundamental Rights",
     language: "eng",
     badge: "Art. 226 / 14",
-    summary: "High Court writ quashing state department blacklisting order passed without show-cause notice.",
+    summary:
+      "High Court writ quashing state department blacklisting order passed without show-cause notice.",
     content: `Constitutional Writ Petition under Article 226 of the Constitution of India
 Court: High Court of Delhi (Writ Jurisdiction)
 Petitioner: Vikram Malhotra Infrastructure Pvt Ltd v. National Highway Authority of India & Union of India
@@ -101,7 +106,8 @@ Drafting Counsel: Adv. Priya Narayanan, Managing Partner, NyayaVault India.`,
     practice_area: "Civil Procedure (CPC)",
     language: "eng",
     badge: "CPC Order 39",
-    summary: "Urgent ex-parte interim injunction application in pharmaceutical trademark passing off suit.",
+    summary:
+      "Urgent ex-parte interim injunction application in pharmaceutical trademark passing off suit.",
     content: `Commercial Court Interlocutory Application under Order XXXIX Rules 1 & 2 read with Section 151 CPC
 Court: City Civil Court / Commercial Court, Ahmedabad
 Matter: Zydus Healthcare Ltd v. Zenon Pharma Lifesciences
@@ -122,7 +128,8 @@ Case Strategy & Triple Test:
     practice_area: "Commercial Litigation & Civil",
     language: "eng",
     badge: "NI Act Sec 138",
-    summary: "Strategic rebuttal of Section 139 presumption by establishing cheques were issued as security.",
+    summary:
+      "Strategic rebuttal of Section 139 presumption by establishing cheques were issued as security.",
     content: `Criminal Complaint Strategy under Section 138 Negotiable Instruments Act, 1881
 Forum: Metropolitan Magistrate (Special NI Court), Patiala House, New Delhi
 Matter: Apex Finlease Ltd v. Rajesh Chawla & R.K. Exports
@@ -142,7 +149,8 @@ Factual Matrix & Defense Blueprint:
     practice_area: "Criminal Law & BNS/IPC",
     language: "hin",
     badge: "BNS 85 / BNSS 482",
-    summary: "Anticipatory bail memo in matrimonial cruelty dispute applying Arnesh Kumar mandatory guidelines.",
+    summary:
+      "Anticipatory bail memo in matrimonial cruelty dispute applying Arnesh Kumar mandatory guidelines.",
     content: `अग्रिम जमानत आवेदन — धारा ४८२ भारतीय नागरिक सुरक्षा संहिता, २०२३ (पूर्ववर्ती धारा ४३८ दंड प्रक्रिया संहिता)
 न्यायालय: प्रधान जिला एवं सत्र न्यायाधीश, रोहिणी कोर्ट, नई दिल्ली।
 आवेदक: श्रीमती सुमित्रा देवी एवं श्री सुरेश अग्रवाल (वृद्ध सास-ससुर)
@@ -163,7 +171,8 @@ Factual Matrix & Defense Blueprint:
     practice_area: "Family Law & Personal Law",
     language: "eng",
     badge: "HMA Sec 13B(2)",
-    summary: "Joint petition waiving statutory 6-month cooling-off period under the Amardeep Singh ratio.",
+    summary:
+      "Joint petition waiving statutory 6-month cooling-off period under the Amardeep Singh ratio.",
     content: `Family Court Joint Application for Waiver of 6-Month Cooling-Off Period
 Court: Principal Judge, Family Court, Bandra, Mumbai
 Parties: Rohan Singhania and Ananya Singhania (nee Deshmukh)
@@ -187,7 +196,8 @@ Statutory Waiver Principles:
     practice_area: "Transfer of Property & Real Estate",
     language: "eng",
     badge: "TPA Sec 54 / Suraj Lamp",
-    summary: "Property title defense establishing that GPA / Agreement to Sell conveys no ownership rights.",
+    summary:
+      "Property title defense establishing that GPA / Agreement to Sell conveys no ownership rights.",
     content: `Civil Property Defense — Title Challenge under Section 54 Transfer of Property Act, 1882
 Court: Civil Judge Senior Division, Pune
 Matter: Kothari Builders LLP v. Chandrakant Gokhale
@@ -207,7 +217,8 @@ Substantive Defense Summary:
     practice_area: "Criminal Law & BNS/IPC",
     language: "eng",
     badge: "BNS 318 / BNSS 528",
-    summary: "Section 528 BNSS petition quashing criminal cheating FIR registered for supply contract delay.",
+    summary:
+      "Section 528 BNSS petition quashing criminal cheating FIR registered for supply contract delay.",
     content: `Criminal Miscellaneous Petition under Section 528 Bharatiya Nagarik Suraksha Sanhita, 2023 (formerly Section 482 CrPC)
 Court: High Court of Judicature at Bombay
 Petitioner: Arvind Global Logistics Pvt Ltd & Directors v. State of Maharashtra & Radiant Textiles Ltd
@@ -223,11 +234,13 @@ Core Propositions for Quashing:
   {
     id: "arb_sec9",
     category: "Arbitration & ADR",
-    title: "Section 9 Arbitration Act — Interim Injunction Restraining Invocation of Bank Guarantee",
+    title:
+      "Section 9 Arbitration Act — Interim Injunction Restraining Invocation of Bank Guarantee",
     practice_area: "Arbitration & ADR",
     language: "eng",
     badge: "Arbitration Sec 9",
-    summary: "Commercial court injunction preventing encashment of unconditional performance bank guarantee.",
+    summary:
+      "Commercial court injunction preventing encashment of unconditional performance bank guarantee.",
     content: `Commercial Arbitration Petition under Section 9 of Arbitration and Conciliation Act, 1996
 Court: High Court of Delhi (Commercial Division)
 Petitioner: Larsen & Toubro Heavy Engineering v. Solar Energy Corporation of India (SECI)
@@ -248,7 +261,8 @@ Legal Grounds for Restraining Encashment:
     practice_area: "Commercial Litigation & Civil",
     language: "eng",
     badge: "Consumer Act Sec 35",
-    summary: "Consumer complaint against builder for 5-year possession delay seeking full refund with 9% interest.",
+    summary:
+      "Consumer complaint against builder for 5-year possession delay seeking full refund with 9% interest.",
     content: `Original Consumer Complaint under Section 35 Consumer Protection Act, 2019
 Forum: National Consumer Disputes Redressal Commission (NCDRC), New Delhi
 Complainants: Aniket Sengupta & Smita Sengupta v. Marvel MegaRealty Developers Ltd
@@ -264,11 +278,13 @@ Facts & Strategic Reliefs:
   {
     id: "sarfaesi_sec17",
     category: "Banking & Recovery",
-    title: "Section 17 SARFAESI Act Securitisation Application before DRT against Physical Possession",
+    title:
+      "Section 17 SARFAESI Act Securitisation Application before DRT against Physical Possession",
     practice_area: "Commercial Litigation & Civil",
     language: "eng",
     badge: "SARFAESI Sec 17",
-    summary: "Debts Recovery Tribunal SA challenging bank's Section 13(4) measures and Section 14 possession order.",
+    summary:
+      "Debts Recovery Tribunal SA challenging bank's Section 13(4) measures and Section 14 possession order.",
     content: `Securitisation Application under Section 17(1) of SARFAESI Act, 2002
 Forum: Debts Recovery Tribunal (DRT-I), Mumbai
 Applicant: Sharda Spinning Mills Ltd v. State Bank of India & Court Receiver
@@ -283,11 +299,13 @@ Statutory Grounds:
   {
     id: "bsa_sec61",
     category: "Evidence & Digital Forensics",
-    title: "Section 61 Bharatiya Sakshya Adhiniyam (BSA) / Section 65B IEA — Electronic Record Certificate",
+    title:
+      "Section 61 Bharatiya Sakshya Adhiniyam (BSA) / Section 65B IEA — Electronic Record Certificate",
     practice_area: "Civil Procedure (CPC)",
     language: "eng",
     badge: "BSA 61 / IEA 65B",
-    summary: "Statutory electronic certificate for admissibility of WhatsApp chats, server logs, and digital invoices.",
+    summary:
+      "Statutory electronic certificate for admissibility of WhatsApp chats, server logs, and digital invoices.",
     content: `STATUTORY CERTIFICATE UNDER SECTION 61(2) OF THE BHARATIYA SAKSHYA ADHINIYAM, 2023 (BSA)
 (Formerly Section 65B of Indian Evidence Act, 1872)
 
@@ -307,7 +325,8 @@ I, Adv. Karan Mehta, acting as Chief Compliance Officer & Digital Custodian, do 
     practice_area: "Indian Contract Act & Commercial",
     language: "hin",
     badge: "हिन्दी NDA धारा २७",
-    summary: "Devanagari Hindi legal agreement with trade secret protection and Section 27 validity parameters.",
+    summary:
+      "Devanagari Hindi legal agreement with trade secret protection and Section 27 validity parameters.",
     content: `गैर-प्रकटीकरण एवं गोपनीयता समझौता (NON-DISCLOSURE AGREEMENT)
 यह विलेख श्री राजेश शर्मा ('प्रकटीकरणकर्ता') तथा मेसर्स भारत लीगल सॉल्यूशंस प्राइवेट लिमिटेड ('प्राप्तकर्ता') के मध्य निष्पादित हुआ।
 वाद संदर्भ संख्या: २०२४-एचसी-४१२ (दिल्ली उच्च न्यायालय)

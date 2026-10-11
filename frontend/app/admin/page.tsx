@@ -1,222 +1,263 @@
 "use client";
-
-import React, { useEffect, useState } from "react";
-import {
-  ShieldCheck,
-  Download,
-  Filter,
-  Users,
-  Clock,
-  ShieldAlert,
-  CheckCircle2,
-  XCircle,
-  FileText,
-  BotMessageSquare,
-  Loader2,
-} from "lucide-react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Download, ShieldCheck, Users, ArrowRight, ArrowLeft } from "lucide-react";
 import { api } from "@/lib/api";
-
+import { useAppStore, type UserProfile } from "@/store/useAppStore";
+import { errorMessage } from "@/lib/utils";
+import {
+  Badge,
+  Button,
+  Card,
+  Drawer,
+  EmptyState,
+  ErrorState,
+  Input,
+  PageHeader,
+  Skeleton,
+} from "@/components/ui/primitives";
+import { Reveal } from "@/components/ui/motion";
+interface AuditEvent {
+  id: number;
+  actor_id: number;
+  actor_name: string;
+  action: string;
+  timestamp: string;
+  target_type: string;
+  target_id: number;
+  details: string;
+}
 export default function AdminCompliancePage() {
-  const [logs, setLogs] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filterAction, setFilterAction] = useState("ALL");
-
-  const loadData = async (actionFilter?: string) => {
-    setLoading(true);
-    try {
-      const [logsData, usersData] = await Promise.all([
-        api.admin.getAuditLog(actionFilter === "ALL" ? undefined : actionFilter),
-        api.admin.getUsers().catch(() => []),
-      ]);
-      setLogs(logsData || []);
-      setUsers(usersData || []);
-    } catch (err) {
-      console.error("Failed to load audit logs:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadData(filterAction);
-  }, [filterAction]);
-
-  const exportCSV = () => {
-    if (!logs.length) return;
-    const headers = ["ID", "Timestamp", "Actor", "Action", "Target", "Details"];
-    const rows = logs.map((l) => [
-      l.id,
-      new Date(l.timestamp).toISOString(),
-      `"${l.actor_name || l.actor_id || "System"}"`,
-      l.action,
-      `${l.target_type} #${l.target_id || ""}`,
-      `"${(l.details || "").replace(/"/g, '""')}"`,
-    ]);
-
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
+  const user = useAppStore((state) => state.currentUser);
+  const [action, setAction] = useState("");
+  const [offset, setOffset] = useState(0);
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+  const [selected, setSelected] = useState<AuditEvent | null>(null);
+  const logs = useQuery<AuditEvent[]>({
+    queryKey: ["audit", user.firm_id, action, offset, start, end],
+    queryFn: () => api.admin.getAuditLog(action, offset, start, end),
+    enabled: user.role === "admin",
+  });
+  const users = useQuery<UserProfile[]>({
+    queryKey: ["users", user.firm_id],
+    queryFn: () => api.admin.getUsers(),
+    enabled: user.role === "admin",
+  });
+  const exportCsv = () => {
+    const escape = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const rows = [
+      ["ID", "Timestamp", "Actor", "Action", "Target", "Details"],
+      ...(logs.data || []).map((log) => [
+        log.id,
+        log.timestamp,
+        log.actor_name || log.actor_id,
+        log.action,
+        `${log.target_type} #${log.target_id || ""}`,
+        log.details,
+      ]),
+    ];
+    const blob = new Blob(["\uFEFF" + rows.map((row) => row.map(escape).join(",")).join("\n")], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `lexvault_audit_log_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
+    link.href = url;
+    link.download = `lexvault_firm_${user.firm_id}_audit_page_${offset / 50 + 1}.csv`;
     link.click();
-    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
-
+  if (user.role !== "admin")
+    return (
+      <EmptyState
+        title="Partner workspace"
+        description="Use the senior partner demo role to inspect your firm’s audit trail and access roster."
+      />
+    );
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl bg-surface border border-surface-border">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-accent uppercase tracking-wider mb-1">
-            <ShieldCheck className="w-4 h-4" />
-            <span>Compliance & Legal Malpractice Defense</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-content-primary">
-            Institutional Audit & Privilege Trail
-          </h1>
-          <p className="text-xs text-content-secondary mt-1">
-            Every PII redaction, lawyer approval, rejection, and AI query is permanently immutably logged for firm compliance.
-          </p>
-        </div>
-
-        <button
-          onClick={exportCSV}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface-elevated hover:bg-surface border border-surface-border text-content-primary font-semibold text-xs transition-all self-start sm:self-auto hover:border-accent/40"
-        >
-          <Download className="w-4 h-4 text-accent" />
-          <span>Export Audit CSV</span>
-        </button>
-      </div>
-
-      {/* Filter Bar */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
-        <span className="text-content-muted text-[11px]">Filter Action:</span>
-        {["ALL", "PII_STRIPPED", "APPROVAL_GRANTED", "APPROVAL_REJECTED", "KNOWLEDGE_PUBLISHED", "AI_ASSISTANT_QUERY"].map(
-          (act) => (
-            <button
-              key={act}
-              onClick={() => setFilterAction(act)}
-              className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all text-xs ${
-                filterAction === act
-                  ? "bg-accent/20 text-accent font-semibold border border-accent/40 shadow-sm"
-                  : "bg-surface text-content-secondary hover:text-content-primary border border-surface-border"
-              }`}
-            >
-              {act}
-            </button>
-          )
-        )}
-      </div>
-
-      {/* Audit Log Table */}
-      <div className="rounded-2xl bg-surface border border-surface-border overflow-hidden">
-        <div className="p-4 border-b border-surface-border flex items-center justify-between text-xs">
-          <span className="font-semibold text-content-primary">
-            Immutable Audit Events ({logs.length})
-          </span>
-          <span className="text-content-muted text-[11px]">Sorted chronologically (latest first)</span>
-        </div>
-
-        {loading ? (
-          <div className="p-12 text-center text-content-muted text-xs flex items-center justify-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin text-accent" />
-            <span>Loading compliance logs...</span>
-          </div>
-        ) : logs.length === 0 ? (
-          <div className="p-8 text-center text-content-muted text-xs">
-            No audit log entries recorded for this filter.
-          </div>
-        ) : (
+    <Reveal className="mx-auto max-w-7xl space-y-6">
+      <PageHeader
+        eyebrow="Firm audit & access"
+        title="A clear record of every knowledge decision."
+        description="Inspect capture, sanitization, review, and research events for the active firm workspace."
+        action={
+          <Button variant="secondary" disabled={!logs.data?.length} onClick={exportCsv}>
+            <Download className="h-4 w-4" />
+            Export current page
+          </Button>
+        }
+      />
+      <Card className="flex flex-wrap items-end gap-4 p-5">
+        <label className="text-xs text-content-secondary">
+          Event type
+          <select
+            value={action}
+            onChange={(event) => {
+              setAction(event.target.value);
+              setOffset(0);
+            }}
+            className="mt-2 block min-h-11 rounded-xl border border-surface-border bg-surface-elevated px-3 text-xs"
+          >
+            <option value="">All events</option>
+            {[
+              "CAPTURE",
+              "PII_STRIPPED",
+              "APPROVAL_GRANTED",
+              "APPROVAL_REJECTED",
+              "KNOWLEDGE_PUBLISHED",
+              "AI_ASSISTANT_QUERY",
+              "CONSTITUTION_RESEARCH",
+            ].map((type) => (
+              <option key={type} value={type}>
+                {type.replaceAll("_", " ")}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs text-content-secondary">
+          From
+          <Input
+            className="mt-2"
+            type="date"
+            value={start}
+            onChange={(event) => {
+              setStart(event.target.value);
+              setOffset(0);
+            }}
+          />
+        </label>
+        <label className="text-xs text-content-secondary">
+          Through
+          <Input
+            className="mt-2"
+            type="date"
+            value={end}
+            onChange={(event) => {
+              setEnd(event.target.value);
+              setOffset(0);
+            }}
+          />
+        </label>
+        <p className="ml-auto flex items-center gap-2 text-xs text-content-muted">
+          <ShieldCheck className="h-4 w-4 text-accent" />
+          Firm-scoped audit records
+        </p>
+      </Card>
+      {logs.isError ? (
+        <ErrorState message={errorMessage(logs.error)} retry={() => logs.refetch()} />
+      ) : logs.isPending ? (
+        <Skeleton className="h-96" />
+      ) : !logs.data?.length ? (
+        <EmptyState
+          title="No matching audit events"
+          description="Change the filters or complete a capture, review, or research action."
+        />
+      ) : (
+        <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-surface-elevated text-content-muted uppercase text-[10px] tracking-wider border-b border-surface-border">
+              <caption className="sr-only">Audit events for {user.firm_name}</caption>
+              <thead className="border-b border-surface-border bg-surface-elevated text-content-muted">
                 <tr>
-                  <th className="py-3 px-4">Timestamp</th>
-                  <th className="py-3 px-4">Actor</th>
-                  <th className="py-3 px-4">Action</th>
-                  <th className="py-3 px-4">Target</th>
-                  <th className="py-3 px-4">Compliance Details</th>
+                  {["Timestamp", "Actor", "Event", "Target", "Details"].map((title) => (
+                    <th key={title} scope="col" className="px-4 py-4 font-medium">
+                      {title}
+                    </th>
+                  ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-surface-border font-mono text-[11px]">
-                {logs.map((log) => {
-                  let badge = (
-                    <span className="px-2 py-0.5 rounded bg-surface-elevated text-content-secondary border border-surface-border">
-                      {log.action}
-                    </span>
-                  );
-
-                  if (log.action === "PII_STRIPPED") {
-                    badge = (
-                      <span className="px-2 py-0.5 rounded bg-status-danger/15 text-status-danger border border-status-danger/30 font-semibold">
-                        PII_STRIPPED
-                      </span>
-                    );
-                  } else if (log.action === "APPROVAL_GRANTED") {
-                    badge = (
-                      <span className="px-2 py-0.5 rounded bg-status-success/15 text-status-success border border-status-success/30 font-semibold">
-                        APPROVAL_GRANTED
-                      </span>
-                    );
-                  } else if (log.action === "APPROVAL_REJECTED") {
-                    badge = (
-                      <span className="px-2 py-0.5 rounded bg-status-warning/15 text-status-warning border border-status-warning/30 font-semibold">
-                        APPROVAL_REJECTED
-                      </span>
-                    );
-                  } else if (log.action === "AI_ASSISTANT_QUERY") {
-                    badge = (
-                      <span className="px-2 py-0.5 rounded bg-status-info/15 text-status-info border border-status-info/30 font-semibold">
-                        AI_ASSISTANT_QUERY
-                      </span>
-                    );
-                  }
-
-                  return (
-                    <tr key={log.id} className="hover:bg-surface-elevated/40 transition-colors">
-                      <td className="py-3 px-4 text-content-muted whitespace-nowrap">
-                        {new Date(log.timestamp).toLocaleString()}
-                      </td>
-                      <td className="py-3 px-4 font-medium text-content-primary whitespace-nowrap font-sans">
-                        {log.actor_name || `User #${log.actor_id || "System"}`}
-                      </td>
-                      <td className="py-3 px-4 whitespace-nowrap">{badge}</td>
-                      <td className="py-3 px-4 text-content-secondary whitespace-nowrap">
-                        {log.target_type} #{log.target_id || "-"}
-                      </td>
-                      <td className="py-3 px-4 text-content-secondary font-sans leading-relaxed max-w-md truncate">
-                        {log.details}
-                      </td>
-                    </tr>
-                  );
-                })}
+              <tbody className="divide-y divide-surface-border">
+                {logs.data.map((log) => (
+                  <tr key={log.id} className="hover:bg-surface-elevated/50">
+                    <td className="whitespace-nowrap px-4 py-4 text-content-muted">
+                      {new Date(
+                        `${log.timestamp}${log.timestamp.endsWith("Z") ? "" : "Z"}`,
+                      ).toLocaleString("en-IN")}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-4">
+                      {log.actor_name === "System" && log.actor_id
+                        ? `User #${log.actor_id}`
+                        : log.actor_name || "System"}
+                    </td>
+                    <td className="px-4 py-4">
+                      <Badge className="whitespace-nowrap text-[10px]">
+                        {log.action.replaceAll("_", " ")}
+                      </Badge>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-4 text-content-secondary">
+                      {log.target_type} #{log.target_id || "—"}
+                    </td>
+                    <td className="px-4 py-4">
+                      <button
+                        onClick={() => setSelected(log)}
+                        className="max-w-xs truncate text-left text-accent"
+                      >
+                        {log.details || "Inspect event"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-        )}
-      </div>
-
-      {/* Firm Users Overview */}
-      <div className="p-6 rounded-2xl bg-surface border border-surface-border space-y-4">
-        <h3 className="text-sm font-semibold text-content-primary flex items-center gap-2">
-          <Users className="w-4 h-4 text-accent" />
-          <span>Active Firm Access Roster</span>
-        </h3>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-          {users.map((u) => (
-            <div key={u.id} className="p-4 rounded-xl bg-surface-elevated border border-surface-border space-y-1">
-              <div className="font-semibold text-content-primary">{u.name}</div>
-              <div className="text-content-muted text-[11px]">{u.email}</div>
-              <div className="text-[10px] font-bold text-accent uppercase tracking-wider mt-2">
-                Role: {u.role}
-              </div>
-            </div>
-          ))}
+        </Card>
+      )}
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-content-muted">Page {offset / 50 + 1} · up to 50 events</span>
+        <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            disabled={offset === 0}
+            onClick={() => setOffset((value) => Math.max(0, value - 50))}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Previous
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={(logs.data?.length || 0) < 50}
+            onClick={() => setOffset((value) => value + 50)}
+          >
+            Next
+            <ArrowRight className="h-4 w-4" />
+          </Button>
         </div>
       </div>
-    </div>
+      <Card className="p-6">
+        <h2 className="mb-5 flex items-center gap-2 text-sm font-semibold">
+          <Users className="h-4 w-4 text-accent" />
+          Firm access roster
+        </h2>
+        {users.isError ? (
+          <ErrorState message={errorMessage(users.error)} retry={() => users.refetch()} />
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {users.data?.map((person) => (
+              <div key={person.id} className="rounded-xl border border-surface-border p-4">
+                <h3 className="text-sm font-medium">{person.name}</h3>
+                <p className="mb-3 mt-2 break-all text-xs text-content-muted">{person.email}</p>
+                <Badge>{person.role}</Badge>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+      <Drawer
+        open={!!selected}
+        onOpenChange={(open) => {
+          if (!open) setSelected(null);
+        }}
+        title={`Audit event #${selected?.id || ""}`}
+      >
+        <div className="space-y-5">
+          <Badge>{selected?.action}</Badge>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed">{selected?.details}</p>
+          <p className="text-xs text-content-muted">
+            Actor #{selected?.actor_id || "System"} · {selected?.target_type} #
+            {selected?.target_id || "—"}
+          </p>
+        </div>
+      </Drawer>
+    </Reveal>
   );
 }

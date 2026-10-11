@@ -4,81 +4,166 @@
 
 @layer base {
   :root {
-    --background: #0B0F14;
-    --surface: #131922;
-    --surface-elevated: #1A2230;
-    --accent: #C9A24B;
-    --accent-hover: #DEBA65;
-    --content-primary: #E7EAEE;
-    --content-secondary: #9BA3AF;
+    --font-inter: "Inter Variable";
+    --font-serif: "Source Serif 4 Variable";
+    --background: 246 247 250;
+    --surface: 255 255 255;
+    --surface-elevated: 241 244 248;
+    --surface-subtle: 250 251 253;
+    --border: 219 225 234;
+    --accent: 153 111 30;
+    --accent-hover: 175 130 39;
+    --text-primary: 22 34 53;
+    --text-secondary: 73 89 110;
+    --text-muted: 100 116 139;
+    color-scheme: light;
   }
-
+  .dark {
+    --background: 11 16 24;
+    --surface: 18 26 39;
+    --surface-elevated: 25 36 52;
+    --surface-subtle: 14 21 32;
+    --border: 43 56 74;
+    --accent: 208 174 99;
+    --accent-hover: 229 196 126;
+    --text-primary: 235 240 246;
+    --text-secondary: 163 179 198;
+    --text-muted: 129 147 171;
+    color-scheme: dark;
+  }
   body {
-    background-color: #0B0F14;
-    color: #E7EAEE;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    @apply bg-background text-content-primary;
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    overflow-x: hidden;
   }
-
-  /* Custom scrollbar */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+  [lang="hi"] {
+    font-family: "Noto Sans Devanagari Variable", system-ui, sans-serif;
   }
-  ::-webkit-scrollbar-track {
-    background: #0B0F14;
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--border)) transparent;
   }
-  ::-webkit-scrollbar-thumb {
-    background: #232D3F;
-    border-radius: 9999px;
+  ::selection {
+    background: rgb(var(--accent) / 0.25);
   }
-  ::-webkit-scrollbar-thumb:hover {
-    background: #C9A24B;
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent));
+    outline-offset: 3px;
+  }
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
   }
 }
 
-/* React Flow Dark Styling */
 .react-flow__background {
-  background-color: #0B0F14 !important;
+  background-color: rgb(var(--background)) !important;
 }
-
-.react-flow__attribution {
-  display: none !important;
-}
-
 .react-flow__controls {
-  background: #131922 !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  border-radius: 8px !important;
+  background: rgb(var(--surface)) !important;
+  border: 1px solid rgb(var(--border));
+  border-radius: 10px;
+  overflow: hidden;
 }
-
 .react-flow__controls-button {
-  background: #131922 !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
-  fill: #E7EAEE !important;
+  background: rgb(var(--surface)) !important;
+  border-bottom: 1px solid rgb(var(--border)) !important;
+  fill: rgb(var(--text-primary)) !important;
 }
-
 .react-flow__controls-button:hover {
-  background: #1A2230 !important;
-  fill: #C9A24B !important;
+  background: rgb(var(--surface-elevated)) !important;
 }
-
-/* Traveling pulse animation for pipeline connections */
+.react-flow__attribution {
+  background: rgb(var(--surface)) !important;
+  color: rgb(var(--text-muted)) !important;
+}
 @keyframes flowDash {
   to {
     stroke-dashoffset: -24;
   }
 }
-
 .pipeline-edge-active {
   stroke-dasharray: 6 6;
   animation: flowDash 0.8s linear infinite;
 }
-
 .glass-card {
-  background: rgba(19, 25, 34, 0.85);
+  background: rgb(var(--surface) / 0.85);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgb(var(--border));
+}
+.legal-prose {
+  font-size: 0.9375rem;
+  line-height: 1.85;
+  overflow-wrap: anywhere;
+}
+.legal-prose p {
+  margin: 0.75rem 0;
+}
+.legal-prose h2,
+.legal-prose h3 {
+  font-weight: 600;
+  margin: 1.5rem 0 0.75rem;
+  line-height: 1.4;
+}
+.legal-prose h3 {
+  color: rgb(var(--accent));
+}
+.legal-prose ul,
+.legal-prose ol {
+  padding-left: 1.5rem;
+  margin: 0.75rem 0;
+}
+.legal-prose ul {
+  list-style: disc;
+}
+.legal-prose ol {
+  list-style: decimal;
+}
+.legal-prose blockquote {
+  border-left: 2px solid rgb(var(--accent));
+  padding: 0.5rem 1rem;
+  background: rgb(var(--surface-elevated));
+}
+.legal-prose table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+.legal-prose td,
+.legal-prose th {
+  border: 1px solid rgb(var(--border));
+  padding: 0.6rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+@media print {
+  header,
+  aside,
+  nav,
+  button {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  [data-memo] {
+    position: absolute;
+    inset: 0;
+    background: white;
+    color: black;
+    max-height: none;
+    overflow: visible;
+  }
 }
