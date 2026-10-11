@@ -58,7 +58,7 @@ interface AppState {
 export const useAppStore = create<AppState>((set, get) => ({
   currentUser: DEMO_INDIAN_USERS.rohit,
   activeJobId: null,
-  pendingCount: 2,
+  pendingCount: 0,
 
   setCurrentUser: (user) => set({ currentUser: user }),
 
@@ -80,10 +80,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     const isPartner = current.role === "admin";
     if (firmId === 1) {
       set({
+        activeJobId: null,
+        pendingCount: 0,
         currentUser: isPartner ? DEMO_INDIAN_USERS.meera : DEMO_INDIAN_USERS.rohit,
       });
     } else {
       set({
+        activeJobId: null,
+        pendingCount: 0,
         currentUser: isPartner ? DEMO_INDIAN_USERS.priya : DEMO_INDIAN_USERS.arjun,
       });
     }

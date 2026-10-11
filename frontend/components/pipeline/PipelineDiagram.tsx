@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import ReactFlow, {
   Background,
   Controls,
@@ -40,7 +41,12 @@ const STAGE_CONFIGS = [
   { stage: 1, name: "Raw Capture", subtitle: "Notes / Voice / OCR", icon: FileText },
   { stage: 2, name: "Local AI Processing", subtitle: "On-device structure & title", icon: Cpu },
   { stage: 3, name: "PII Sanitization", subtitle: "Presidio entity redaction", icon: ShieldAlert },
-  { stage: 4, name: "Strategy Abstraction", subtitle: "Generalize facts to principles", icon: Brain },
+  {
+    stage: 4,
+    name: "Strategy Abstraction",
+    subtitle: "Generalize facts to principles",
+    icon: Brain,
+  },
   { stage: 5, name: "Lawyer Approval Gate", subtitle: "Human-in-the-loop audit", icon: UserCheck },
   { stage: 6, name: "Vector & Graph DB", subtitle: "Qdrant + Neo4j indexing", icon: Database },
   { stage: 7, name: "RAG Retrieval", subtitle: "Hybrid semantic & graph walk", icon: Search },
@@ -92,24 +98,36 @@ function PipelineStageNode({ data }: NodeProps<StageData>) {
   }
 
   return (
-    <div
+    <motion.div
+      role="button"
+      tabIndex={0}
+      aria-label={`Stage ${data.stage}: ${data.name}, ${data.status}`}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          data.onSelectStage?.(data.stage);
+        }
+      }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.2 }}
       onClick={() => data.onSelectStage && data.onSelectStage(data.stage)}
       className={`w-56 p-3.5 rounded-xl bg-surface-elevated/95 backdrop-blur-md border cursor-pointer transition-all duration-200 hover:scale-[1.02] ${borderClass} ${pulseGlow} ${
         isSelected ? "ring-2 ring-accent ring-offset-2 ring-offset-background" : ""
       }`}
     >
       <Handle type="target" position={Position.Left} className="!bg-accent !w-2 !h-2" />
-      
+
       <div className="flex items-start gap-3">
         <div
           className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
             data.status === "done"
               ? "bg-status-success/15 text-status-success border border-status-success/30"
               : data.status === "running"
-              ? "bg-accent/20 text-accent border border-accent/40"
-              : data.status === "waiting_approval"
-              ? "bg-status-warning/20 text-status-warning border border-status-warning/40"
-              : "bg-surface text-content-muted border border-surface-border"
+                ? "bg-accent/20 text-accent border border-accent/40"
+                : data.status === "waiting_approval"
+                  ? "bg-status-warning/20 text-status-warning border border-status-warning/40"
+                  : "bg-surface text-content-muted border border-surface-border"
           }`}
         >
           <Icon className="w-4 h-4" />
@@ -128,7 +146,7 @@ function PipelineStageNode({ data }: NodeProps<StageData>) {
       </div>
 
       <Handle type="source" position={Position.Right} className="!bg-accent !w-2 !h-2" />
-    </div>
+    </motion.div>
   );
 }
 
@@ -207,7 +225,9 @@ export default function PipelineDiagram({
   }, [stages]);
 
   return (
-    <div className={`w-full rounded-2xl border border-surface-border bg-background/90 relative overflow-hidden ${className}`}>
+    <div
+      className={`w-full rounded-2xl border border-surface-border bg-background/90 relative overflow-hidden ${className}`}
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}

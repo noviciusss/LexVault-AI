@@ -10,28 +10,29 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#0B0F14",
+        background: "rgb(var(--background) / <alpha-value>)",
         surface: {
-          DEFAULT: "#131922",
-          elevated: "#1A2230",
-          subtle: "#0F141C",
-          border: "rgba(255, 255, 255, 0.08)",
+          DEFAULT: "rgb(var(--surface) / <alpha-value>)",
+          elevated: "rgb(var(--surface-elevated) / <alpha-value>)",
+          subtle: "rgb(var(--surface-subtle) / <alpha-value>)",
+          border: "rgb(var(--border) / <alpha-value>)",
         },
         accent: {
-          DEFAULT: "#C9A24B",
-          hover: "#DEBA65",
+          DEFAULT: "rgb(var(--accent) / <alpha-value>)",
+          hover: "rgb(var(--accent-hover) / <alpha-value>)",
           muted: "#8C6F31",
           subtle: "rgba(201, 162, 75, 0.12)",
         },
         content: {
-          primary: "#E7EAEE",
-          secondary: "#9BA3AF",
-          muted: "#64748B",
+          primary: "rgb(var(--text-primary) / <alpha-value>)",
+          secondary: "rgb(var(--text-secondary) / <alpha-value>)",
+          muted: "rgb(var(--text-muted) / <alpha-value>)",
         },
         status: {
           success: "#2FBF8F",
           warning: "#E0A93E",
           danger: "#E0554F",
+          error: "#E0554F",
           info: "#3B82F6",
         },
       },
@@ -40,7 +41,7 @@ const config: Config = {
         serif: ["var(--font-serif)", "Georgia", "serif"],
       },
       boxShadow: {
-        card: "0 4px 20px -2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06)",
+        card: "0 2px 12px -6px rgba(0, 0, 0, 0.22)",
         gold: "0 0 25px -4px rgba(201, 162, 75, 0.25)",
       },
       animation: {
