@@ -38,6 +38,7 @@ async def execute_stage3_pii(
 
     # Audit log
     audit = AuditLogEntry(
+        firm_id=knowledge_item.firm_id,
         actor_id=knowledge_item.author_id,
         action="PII_STRIPPED",
         target_type="KnowledgeItem",

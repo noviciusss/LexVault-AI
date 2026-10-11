@@ -83,6 +83,7 @@ async def execute_stage6_storage(
 
     # 5. Audit log
     audit = AuditLogEntry(
+        firm_id=knowledge_item.firm_id,
         actor_id=knowledge_item.author_id,
         action="KNOWLEDGE_PUBLISHED",
         target_type="KnowledgeItem",

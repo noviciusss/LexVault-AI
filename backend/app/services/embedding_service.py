@@ -1,6 +1,7 @@
 import logging
 from typing import List
 import numpy as np
+import hashlib
 
 logger = logging.getLogger("lexvault.embedding")
 
@@ -38,7 +39,7 @@ class EmbeddingService:
         for text in texts:
             vec = np.zeros(self.dim, dtype=np.float32)
             for i, word in enumerate(text.split()):
-                idx = abs(hash(word)) % self.dim
+                idx = int.from_bytes(hashlib.sha256(word.lower().encode("utf-8")).digest()[:8], "big") % self.dim
                 vec[idx] += 1.0 / (i + 1)
             norm = np.linalg.norm(vec)
             if norm > 0:

@@ -92,6 +92,10 @@ class GroqClient:
         # 3. Dynamic Knowledge Extractor fallback
         return self._dynamic_context_fallback(prompt, system_prompt, json_mode)
 
+    async def complete_local(self, prompt: str, system_prompt: str) -> Optional[str]:
+        """Raw capture processing must stay on the local model path."""
+        return await self._try_ollama(self._build_messages(prompt, system_prompt))
+
     async def stream(
         self,
         prompt: str,
@@ -150,6 +154,10 @@ class GroqClient:
                 "practice_area": "Commercial Litigation & Insolvency",
                 "summary": "Extracted institutional precedent and strategic guidelines from firm vault."
             })
+
+        if "SANITIZED FACTUAL INPUT:\n" in prompt:
+            source = prompt.split("SANITIZED FACTUAL INPUT:\n", 1)[1]
+            return "### Sanitized source · partner editing required\n\nModel abstraction was unavailable. Review and rewrite this sanitized source into a transferable strategy before approval.\n\n" + source
 
         # Extract items and insights from INTERNAL FIRM CONTEXT in prompt
         pattern = r"Knowledge Item #(\d+):\s*(.*?)(?=\nKnowledge Item #|\n\nATTORNEY QUESTION:|\Z)"

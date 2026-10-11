@@ -1,41 +1,21 @@
-import logging
+import asyncio
 import io
-
-logger = logging.getLogger("lexvault.whisper")
 
 class WhisperService:
     def __init__(self):
         self.model = None
-        self._init_model()
-
-    def _init_model(self):
-        try:
-            from faster_whisper import WhisperModel
-            # Load tiny or base model on CPU
-            self.model = WhisperModel("base", device="cpu", compute_type="int8")
-            logger.info("faster-whisper model loaded successfully.")
-        except Exception as e:
-            logger.warning(f"faster-whisper not initialized ({e}). Using mock/fallback transcription.")
 
     async def transcribe(self, audio_bytes: bytes, filename: str = "audio.wav") -> str:
-        if not audio_bytes:
-            return ""
+        return await asyncio.to_thread(self._transcribe, audio_bytes)
 
-        if self.model:
-            try:
-                audio_stream = io.BytesIO(audio_bytes)
-                segments, info = self.model.transcribe(audio_stream, beam_size=2)
-                transcript = " ".join([segment.text for segment in segments]).strip()
-                return transcript
-            except Exception as e:
-                logger.error(f"Whisper transcription error: {e}")
-
-        # Intelligent Indian legal mock transcript if audio processing cannot run locally
-        return (
-            "During the interlocutory injunction hearing before the Bombay High Court in Commercial Suit No. 412 of 2024, "
-            "we argued under Order 39 Rules 1 and 2 of the Code of Civil Procedure, 1908 that the plaintiff failed to establish a prima facie case and balance of convenience. "
-            "Furthermore, under Section 27 of the Indian Contract Act, 1872, the post-service non-compete covenant is void ab initio. "
-            "The Single Judge accepted our submissions and granted ad-interim relief limited solely to confidentiality of proprietary source code."
-        )
+    def _transcribe(self, content: bytes) -> str:
+        try:
+            from faster_whisper import WhisperModel
+        except ImportError:
+            raise ValueError("Voice transcription requires faster-whisper and a local model. Install the optional voice dependencies or use typed notes.")
+        if self.model is None:
+            self.model = WhisperModel("base", device="cpu", compute_type="int8")
+        segments, _ = self.model.transcribe(io.BytesIO(content), beam_size=2)
+        return " ".join(segment.text for segment in segments).strip()
 
 whisper_service = WhisperService()

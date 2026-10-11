@@ -35,6 +35,7 @@ async def execute_stage1_capture(
     
     # Audit log
     audit = AuditLogEntry(
+        firm_id=knowledge_item.firm_id,
         actor_id=knowledge_item.author_id,
         action="CAPTURE_INGESTED",
         target_type="KnowledgeItem",

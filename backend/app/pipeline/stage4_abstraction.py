@@ -52,6 +52,7 @@ async def execute_stage4_abstraction(
 
     # Audit log
     audit = AuditLogEntry(
+        firm_id=knowledge_item.firm_id,
         actor_id=knowledge_item.author_id,
         action="STRATEGY_ABSTRACTED",
         target_type="KnowledgeItem",

@@ -40,6 +40,7 @@ async def execute_stage5_approval(
         job.finished_at = datetime.utcnow()
 
         audit = AuditLogEntry(
+            firm_id=knowledge_item.firm_id,
             actor_id=approver_id,
             action="APPROVAL_REJECTED",
             target_type="KnowledgeItem",
@@ -71,6 +72,7 @@ async def execute_stage5_approval(
     job.finished_at = datetime.utcnow()
 
     audit = AuditLogEntry(
+        firm_id=knowledge_item.firm_id,
         actor_id=approver_id,
         action="APPROVAL_GRANTED",
         target_type="KnowledgeItem",

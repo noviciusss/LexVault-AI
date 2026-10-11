@@ -34,13 +34,13 @@ async def execute_stage2_local_ai(
         f"RAW INPUT:\n{knowledge_item.raw_text}"
     )
 
-    cleaned_response = await groq_client.complete(
+    cleaned_response = await groq_client.complete_local(
         prompt=prompt,
         system_prompt="You are an on-device legal assistant that structures rough attorney notes into clean draft text."
     )
 
     # Parse title and body
-    lines = cleaned_response.strip().split("\n")
+    lines = (cleaned_response or knowledge_item.raw_text or "").strip().split("\n")
     title = knowledge_item.title or "Legal Insight"
     body_lines = []
     for line in lines:
@@ -59,6 +59,7 @@ async def execute_stage2_local_ai(
 
     # Audit log
     audit = AuditLogEntry(
+        firm_id=knowledge_item.firm_id,
         actor_id=knowledge_item.author_id,
         action="LOCAL_AI_CLEANED",
         target_type="KnowledgeItem",

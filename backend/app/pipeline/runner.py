@@ -1,5 +1,5 @@
 import logging
-from app.core.database import async_session_maker
+from app.core import database
 from app.models.knowledge import KnowledgeItem
 from app.models.pipeline import PipelineJob
 from app.pipeline.stage1_capture import execute_stage1_capture
@@ -18,7 +18,7 @@ async def run_capture_pipeline(knowledge_item_id: int, job_id: int, raw_content:
     Stops at Stage 5 to wait for human-in-the-loop attorney approval.
     """
     job = None
-    async with async_session_maker() as session:
+    async with database.async_session_maker() as session:
         try:
             import asyncio
             await asyncio.sleep(0.1)
@@ -63,7 +63,7 @@ async def run_approval_pipeline(
     Background Task: Executes Stage 5 (Approval) and Stage 6 (Storage) upon approval.
     """
     job = None
-    async with async_session_maker() as session:
+    async with database.async_session_maker() as session:
         try:
             import asyncio
             await asyncio.sleep(0.1)
