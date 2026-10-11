@@ -7,6 +7,7 @@ from app.core.database import get_session
 from app.core.security import verify_password, get_password_hash, create_access_token
 from app.core.deps import get_current_user
 from app.models.user import User, UserCreate, UserLogin, UserRead
+from app.models.firm import Firm
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -17,6 +18,10 @@ async def register(user_in: UserCreate, session: AsyncSession = Depends(get_sess
     existing = res.scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=400, detail="User with this email already exists")
+    if user_in.role != "lawyer" or user_in.firm_id not in (None, 1):
+        raise HTTPException(status_code=403, detail="Firm membership and privileged roles require an administrator")
+    if not await session.get(Firm, 1):
+        raise HTTPException(status_code=400, detail="Registration workspace is unavailable")
 
     user = User(
         name=user_in.name,

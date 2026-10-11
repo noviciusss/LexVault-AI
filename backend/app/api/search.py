@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, desc
@@ -23,6 +23,8 @@ async def list_knowledge(
     practice_area: Optional[str] = None,
     q: Optional[str] = None,
     status: Optional[str] = "published",
+    limit: int = Query(100, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
@@ -36,7 +38,10 @@ async def list_knowledge(
     if practice_area and practice_area.lower() != "all":
         query = query.where(KnowledgeItem.practice_area == practice_area)
 
-    res = await session.execute(query)
+    if q and q.strip():
+        term = f"%{q.strip()}%"
+        query = query.where(KnowledgeItem.title.ilike(term) | KnowledgeItem.abstracted_insight.ilike(term))
+    res = await session.execute(query.offset(offset).limit(limit))
     items = res.scalars().all()
 
     # Filter keyword locally if provided
@@ -76,6 +81,8 @@ async def semantic_search(
     results = []
     for hit in hits:
         payload = hit.get("payload", {})
+        if req.practice_area and payload.get("practice_area") != req.practice_area:
+            continue
         results.append({
             "item_id": payload.get("item_id"),
             "title": payload.get("title"),
@@ -85,3 +92,12 @@ async def semantic_search(
         })
 
     return {"query": req.query, "results": results}
+
+@router.get("/{item_id}")
+async def get_knowledge_item(item_id: int, session: AsyncSession = Depends(get_session), current_user: User = Depends(get_current_user)):
+    item = await session.get(KnowledgeItem, item_id)
+    if not item or item.firm_id != current_user.firm_id or item.status != "published":
+        raise HTTPException(status_code=404, detail="Published knowledge item not found")
+    return {"id": item.id, "title": item.title, "practice_area": item.practice_area,
+            "abstracted_insight": item.abstracted_insight, "created_at": item.created_at,
+            "approved_at": item.approved_at, "status": item.status, "firm_id": item.firm_id}

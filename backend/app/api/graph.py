@@ -19,16 +19,16 @@ async def get_graph(
     Returns graph nodes and edges for the Graph Explorer page.
     Combines live Neo4j records with current database items.
     """
-    graph_data = neo4j_service.get_graph_data()
-
     # Ensure all published DB items are represented in the graph
-    query = select(KnowledgeItem).where(KnowledgeItem.status == "published")
+    query = select(KnowledgeItem).where(KnowledgeItem.status == "published", KnowledgeItem.firm_id == current_user.firm_id)
     res = await session.execute(query)
     items = res.scalars().all()
 
-    existing_node_ids = {n["id"] for n in graph_data.get("nodes", [])}
-    nodes = list(graph_data.get("nodes", []))
-    edges = list(graph_data.get("edges", []))
+    # The legacy graph service has no tenant metadata. Build the public projection
+    # from authorized records rather than exposing unscoped graph nodes.
+    existing_node_ids = set()
+    nodes = []
+    edges = []
 
     for item in items:
         k_id = f"ki-{item.id}"

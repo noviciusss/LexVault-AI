@@ -2,6 +2,7 @@ import json
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel
+from typing import Literal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, desc
 
@@ -15,7 +16,7 @@ from app.pipeline.runner import run_approval_pipeline
 router = APIRouter(prefix="/approvals", tags=["approvals"])
 
 class ApprovalActionRequest(BaseModel):
-    action: str  # "approve" | "reject"
+    action: Literal["approve", "reject"]
     edited_text: Optional[str] = None
     rejection_reason: Optional[str] = None
 
@@ -27,6 +28,7 @@ async def list_pending_approvals(
     query = (
         select(KnowledgeItem)
         .where(KnowledgeItem.status == "pending_approval")
+        .where(KnowledgeItem.firm_id == current_user.firm_id)
         .order_by(desc(KnowledgeItem.created_at))
     )
     result = await session.execute(query)
@@ -60,10 +62,10 @@ async def take_approval_action(
     action_req: ApprovalActionRequest,
     background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(["reviewer", "admin"])),
 ):
     item = await session.get(KnowledgeItem, item_id)
-    if not item:
+    if not item or item.firm_id != current_user.firm_id:
         raise HTTPException(status_code=404, detail="Knowledge item not found")
 
     if item.status != "pending_approval":
@@ -72,7 +74,7 @@ async def take_approval_action(
     # Find or create pipeline job for this item
     query = select(PipelineJob).where(PipelineJob.knowledge_item_id == item_id).order_by(desc(PipelineJob.id))
     res = await session.execute(query)
-    job = res.scalar_one_or_none()
+    job = res.scalars().first()
     if not job:
         job = PipelineJob(knowledge_item_id=item_id, stage=5, stage_name="Lawyer Approval Gate", status="running")
         session.add(job)

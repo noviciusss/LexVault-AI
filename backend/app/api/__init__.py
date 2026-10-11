@@ -10,6 +10,7 @@ from app.api.admin import router as admin_router
 from app.api.constitution import router as constitution_router
 from app.api.statutes import router as statutes_router
 from app.api.tools import router as tools_router
+from app.api.workspace import router as workspace_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -23,3 +24,4 @@ api_router.include_router(admin_router)
 api_router.include_router(constitution_router)
 api_router.include_router(statutes_router)
 api_router.include_router(tools_router)
+api_router.include_router(workspace_router)

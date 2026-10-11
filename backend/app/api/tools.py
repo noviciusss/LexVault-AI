@@ -131,12 +131,14 @@ async def calculate_limitation(
 
     if rule["period_years"] > 0:
         # Add years
-        deadline = datetime(t_date.year + rule["period_years"], t_date.month, t_date.day)
+        from calendar import monthrange
+        year = t_date.year + rule["period_years"]
+        deadline = datetime(year, t_date.month, min(t_date.day, monthrange(year, t_date.month)[1]))
     else:
         # Add days
         deadline = t_date + timedelta(days=rule["period_days"])
 
-    days_remaining = (deadline - datetime.utcnow()).days
+    days_remaining = (deadline.date() - datetime.utcnow().date()).days
 
     status = "Active"
     if days_remaining < 0:
